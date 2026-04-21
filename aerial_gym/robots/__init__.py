@@ -16,6 +16,13 @@ from aerial_gym.config.robot_config.snakey_config import SnakeyCfg
 from aerial_gym.config.robot_config.snakey5_config import Snakey5Cfg
 from aerial_gym.config.robot_config.snakey6_config import Snakey6Cfg
 from aerial_gym.config.robot_config.tinyprop_config import TinyPropCfg
+from aerial_gym.config.robot_config.monorace_config import MonoRaceCfg
+from aerial_gym.config.robot_config.monorace_paper_config import MonoRacePaperCfg
+from aerial_gym.config.robot_config.monorace_paper_camera_config import MonoRacePaperCameraCfg
+from aerial_gym.config.robot_config.monorace_skydreamer_config import MonoRaceSkyDreamerCfg
+from aerial_gym.config.robot_config.monorace_skydreamer_collect_config import (
+    MonoRaceSkyDreamerCollectCfg,
+)
 
 from aerial_gym.config.robot_config.lmf2_config import LMF2Cfg
 
@@ -47,6 +54,13 @@ robot_registry.register("base_rov", BaseROV, BaseROVCfg)
 robot_registry.register("lmf1", BaseMultirotor, LMF1Cfg)
 robot_registry.register("lmf2", BaseMultirotor, LMF2Cfg)
 robot_registry.register("x500", BaseMultirotor, X500Cfg)
+robot_registry.register("monorace_quadrotor", BaseMultirotor, MonoRaceCfg)
+robot_registry.register("monorace_paper_quadrotor", BaseMultirotor, MonoRacePaperCfg)
+robot_registry.register("monorace_paper_camera_quadrotor", BaseMultirotor, MonoRacePaperCameraCfg)
+robot_registry.register("monorace_skydreamer_quadrotor", BaseMultirotor, MonoRaceSkyDreamerCfg)
+robot_registry.register(
+    "monorace_skydreamer_collect_quadrotor", BaseMultirotor, MonoRaceSkyDreamerCollectCfg
+)
 
 robot_registry.register("tinyprop", BaseMultirotor, TinyPropCfg)
 
@@ -59,4 +73,3 @@ robot_registry.register("base_quadrotor_with_faceid_normal_camera", BaseMultirot
 robot_registry.register("base_quadrotor_with_stereo_camera", BaseMultirotor, BaseQuadWithStereoCameraCfg)
 
 robot_registry.register("tinyprop", BaseMultirotor, TinyPropCfg)
-

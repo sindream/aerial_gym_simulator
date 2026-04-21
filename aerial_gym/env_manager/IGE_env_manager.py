@@ -367,6 +367,9 @@ class IsaacGymEnv(BaseManager):
         )
 
         idx = self.num_rigid_bodies_robot
+        self.global_tensor_dict["robot_contact_force_tensor_all"] = self.global_contact_force_tensor[
+            :, :idx, :
+        ]
         self.global_tensor_dict["robot_force_tensor"] = self.global_tensor_dict[
             "global_force_tensor"
         ].view(self.num_envs, self.num_rigid_bodies_per_env, 3)[:, :idx, :]

@@ -16,6 +16,9 @@ from aerial_gym.control.controllers.no_control import NoControl
 from aerial_gym.config.controller_config.lee_controller_config import (
     control as lee_controller_config,
 )
+from aerial_gym.config.controller_config.lee_controller_config_skydreamer_collect import (
+    control as lee_controller_config_skydreamer_collect,
+)
 from aerial_gym.config.controller_config.no_control_config import (
     control as no_control_config,
 )
@@ -48,6 +51,11 @@ controller_registry.register_controller(
 )
 controller_registry.register_controller(
     "lee_position_control", LeePositionController, lee_controller_config
+)
+controller_registry.register_controller(
+    "lee_position_control_skydreamer_collect",
+    LeePositionController,
+    lee_controller_config_skydreamer_collect,
 )
 controller_registry.register_controller(
     "lee_rates_control", LeeRatesController, lee_controller_config

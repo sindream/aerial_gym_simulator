@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="race_gate_1p5m">
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <link name="top_bar">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.25"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+    <visual name="top_bar_visual">
+      <geometry>
+        <box size="0.08 3.00 0.75"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="GateOrange">
+        <color rgba="1.0 0.45 0.1 1.0"/>
+      </material>
+    </visual>
+    <collision name="top_bar_collision">
+      <geometry>
+        <box size="0.08 3.00 0.75"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <link name="bottom_bar">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.25"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+    <visual name="bottom_bar_visual">
+      <geometry>
+        <box size="0.08 3.00 0.75"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="GateOrange">
+        <color rgba="1.0 0.45 0.1 1.0"/>
+      </material>
+    </visual>
+    <collision name="bottom_bar_collision">
+      <geometry>
+        <box size="0.08 3.00 0.75"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <link name="left_bar">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.25"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+    <visual name="left_bar_visual">
+      <geometry>
+        <box size="0.08 0.75 3.00"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="GateOrange">
+        <color rgba="1.0 0.45 0.1 1.0"/>
+      </material>
+    </visual>
+    <collision name="left_bar_collision">
+      <geometry>
+        <box size="0.08 0.75 3.00"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <link name="right_bar">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.25"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+    <visual name="right_bar_visual">
+      <geometry>
+        <box size="0.08 0.75 3.00"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="GateOrange">
+        <color rgba="1.0 0.45 0.1 1.0"/>
+      </material>
+    </visual>
+    <collision name="right_bar_collision">
+      <geometry>
+        <box size="0.08 0.75 3.00"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <joint name="base_to_top_bar" type="fixed" dont_collapse="true">
+    <parent link="base_link"/>
+    <child link="top_bar"/>
+    <origin xyz="0 0 1.125" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="base_to_bottom_bar" type="fixed" dont_collapse="true">
+    <parent link="base_link"/>
+    <child link="bottom_bar"/>
+    <origin xyz="0 0 -1.125" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="base_to_left_bar" type="fixed" dont_collapse="true">
+    <parent link="base_link"/>
+    <child link="left_bar"/>
+    <origin xyz="0 1.125 0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="base_to_right_bar" type="fixed" dont_collapse="true">
+    <parent link="base_link"/>
+    <child link="right_bar"/>
+    <origin xyz="0 -1.125 0" rpy="0 0 0"/>
+  </joint>
+</robot>

@@ -11,3 +11,13 @@ nn/
 train_dir/
 wandb/
 runs/
+rollout_viz/
+paper/
+
+aerial_gym/rl_training/rl_games/runs
+aerial_gym/rl_training/rl_games/nn
+
+third_party/dreamerv3/
+third_party/dreamerv3-torch/
+aerial_gym/rl_training/dreamerv3/
+aerial_gym/rl_training/dreamerv3_torch/

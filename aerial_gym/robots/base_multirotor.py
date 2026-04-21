@@ -125,6 +125,23 @@ class BaseMultirotor(BaseRobot):
             device=self.device,
         )
 
+        action_limit_min = getattr(self.controller_config, "action_limit_min", None)
+        action_limit_max = getattr(self.controller_config, "action_limit_max", None)
+        if action_limit_min is None or action_limit_max is None:
+            self.action_limit_min = torch.full(
+                (self.num_actions,), -10.0, device=self.device, requires_grad=False
+            )
+            self.action_limit_max = torch.full(
+                (self.num_actions,), 10.0, device=self.device, requires_grad=False
+            )
+        else:
+            self.action_limit_min = torch.tensor(
+                action_limit_min, device=self.device, requires_grad=False, dtype=torch.float32
+            )
+            self.action_limit_max = torch.tensor(
+                action_limit_max, device=self.device, requires_grad=False, dtype=torch.float32
+            )
+
         self.body_vel_linear_damping_coefficient = torch.tensor(
             self.cfg.damping.linvel_linear_damping_coefficient,
             device=self.device,
@@ -208,7 +225,9 @@ class BaseMultirotor(BaseRobot):
         """
         Clip the action tensor to the range of the controller inputs.
         """
-        self.action_tensor[:] = torch.clamp(self.action_tensor, -10.0, 10.0)
+        self.action_tensor[:] = torch.minimum(
+            torch.maximum(self.action_tensor, self.action_limit_min), self.action_limit_max
+        )
 
     def apply_disturbance(self):
         if not self.cfg.disturbance.enable_disturbance:

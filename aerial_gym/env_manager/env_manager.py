@@ -79,6 +79,32 @@ class EnvManager(BaseManager):
             self.num_envs, dtype=torch.int32, requires_grad=False, device=self.device
         )
 
+    def delete_env(self):
+        if hasattr(self, "IGE_env") and self.IGE_env is not None:
+            viewer = getattr(self.IGE_env, "viewer", None)
+            gym = getattr(self.IGE_env, "gym", None)
+            sim = getattr(self.IGE_env, "sim", None)
+            if gym is not None and viewer is not None:
+                gym.destroy_viewer(viewer)
+                self.IGE_env.viewer = None
+            if gym is not None and sim is not None:
+                gym.destroy_sim(sim)
+                self.IGE_env.sim = None
+
+        if hasattr(self, "warp_env"):
+            self.warp_env = None
+        if hasattr(self, "robot_manager"):
+            self.robot_manager = None
+        if hasattr(self, "asset_loader"):
+            self.asset_loader = None
+
+        self.global_tensor_dict = {}
+        self.global_sim_dict = {}
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+
     def create_sim(self, env_cfg, sim_cfg):
         """
         This function creates the environment and the robot manager. Does the necessary things to create the environment
@@ -212,22 +238,34 @@ class EnvManager(BaseManager):
                 segmentation_ctr += max(ige_seg_ctr, warp_segmentation_ctr)
                 if self.asset_min_state_ratio is None or self.asset_max_state_ratio is None:
                     self.asset_min_state_ratio = torch.tensor(
-                        asset_info_dict["min_state_ratio"], requires_grad=False
+                        asset_info_dict["min_state_ratio"],
+                        dtype=torch.float32,
+                        requires_grad=False,
                     ).unsqueeze(0)
                     self.asset_max_state_ratio = torch.tensor(
-                        asset_info_dict["max_state_ratio"], requires_grad=False
+                        asset_info_dict["max_state_ratio"],
+                        dtype=torch.float32,
+                        requires_grad=False,
                     ).unsqueeze(0)
                 else:
                     self.asset_min_state_ratio = torch.vstack(
                         (
                             self.asset_min_state_ratio,
-                            torch.tensor(asset_info_dict["min_state_ratio"], requires_grad=False),
+                            torch.tensor(
+                                asset_info_dict["min_state_ratio"],
+                                dtype=torch.float32,
+                                requires_grad=False,
+                            ),
                         )
                     )
                     self.asset_max_state_ratio = torch.vstack(
                         (
                             self.asset_max_state_ratio,
-                            torch.tensor(asset_info_dict["max_state_ratio"], requires_grad=False),
+                            torch.tensor(
+                                asset_info_dict["max_state_ratio"],
+                                dtype=torch.float32,
+                                requires_grad=False,
+                            ),
                         )
                     )
 
