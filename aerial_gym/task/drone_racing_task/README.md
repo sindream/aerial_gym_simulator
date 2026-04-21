@@ -14,6 +14,31 @@ This document summarizes the current optical-flow-based drone racing task setup 
   - `aerial_gym/rl_training/rl_games/ppo_drone_racing_multimodal.yaml`
 - RL-Games runner:
   - `aerial_gym/rl_training/rl_games/runner_multimodal.py`
+- Repo-local custom RL-Games multimodal model:
+  - `aerial_gym/rl_training/rl_games/aerial_multimodal_models.py`
+- Repo-local custom RL-Games multimodal network builder:
+  - `aerial_gym/rl_training/rl_games/aerial_multimodal_network_builder.py`
+
+## RL-Games Customization
+
+This task does not rely on editing the installed `rl_games` package anymore.
+
+The custom multimodal RL-Games extensions required by this task have been vendored into this repository:
+
+- `aerial_gym/rl_training/rl_games/aerial_multimodal_models.py`
+- `aerial_gym/rl_training/rl_games/aerial_multimodal_network_builder.py`
+
+`runner_multimodal.py` imports these repo-local files directly and registers:
+
+- network name: `aerial_multimodal_actor_critic`
+- model name: `continuous_a2c_logstd_multimodal`
+- algo name: `a2c_continuous_multimodal`
+
+This means:
+
+- you still need the base `rl_games` package installed
+- but you do not need to manually patch `site-packages/rl_games` for this task
+- for this optical-flow multimodal setup, use `runner_multimodal.py`, not the default `runner.py`
 
 ## Current Task Summary
 

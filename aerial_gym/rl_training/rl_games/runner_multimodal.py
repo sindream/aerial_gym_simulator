@@ -8,14 +8,14 @@ import yaml
 from gym import spaces
 
 from aerial_gym.registry.task_registry import task_registry
-from aerial_gym.utils.helpers import parse_arguments
-from rl_games.algos_torch import a2c_continuous, model_builder, players
-from rl_games.algos_torch.aerial_multimodal_models import (
+from aerial_gym.rl_training.rl_games.aerial_multimodal_models import (
     ModelA2CContinuousLogStdMultimodal,
 )
-from rl_games.algos_torch.aerial_multimodal_network_builder import (
+from aerial_gym.rl_training.rl_games.aerial_multimodal_network_builder import (
     AerialMultimodalA2CBuilder,
 )
+from aerial_gym.utils.helpers import parse_arguments
+from rl_games.algos_torch import a2c_continuous, model_builder, players
 from rl_games.common import env_configurations, vecenv
 from rl_games.torch_runner import Runner
 
