@@ -3,37 +3,38 @@ from aerial_gym import AERIAL_GYM_DIRECTORY
 import numpy as np
 
 
-TRACK_BOUNDS_MIN = [0.0, -15.0, 0.0]
-TRACK_BOUNDS_MAX = [100.0, 15.0, 6.0]
+TRACK_BOUNDS_MIN = [-25.0, -50.0, 0.0]
+TRACK_BOUNDS_MAX = [60.0, 30.0, 14.0]
 
-TRACK_LENGTH_METERS = 100.0
-TRACK_WIDTH_METERS = 30.0
-NUM_LAPS = 2
+TRACK_LENGTH_METERS = 85.0
+TRACK_WIDTH_METERS = 80.0
+NUM_LAPS = 1
 
-GATE_INNER_SIZE_METERS = 1.5
-GATE_OUTER_SIZE_METERS = 3.0
-GATE_COLLISION_DEPTH_METERS = 0.08
+GATE_INNER_SIZE_METERS = 4.0
+GATE_OUTER_SIZE_METERS = 4.64
+GATE_COLLISION_DEPTH_METERS = 0.45
 
-RANDOM_CYLINDER_OBSTACLE_COUNT = 10
-RANDOM_CYLINDER_RADIUS_METERS = 0.40
+RANDOM_CYLINDER_OBSTACLE_COUNT = 0
+RANDOM_CYLINDER_RADIUS_METERS = 0.20
 RANDOM_CYLINDER_HEIGHT_METERS = 4.5
 RANDOM_CYLINDER_SEMANTIC_ID = 150
 
-START_POSITION = [2.0, -12.0, 0.25]
+START_POSITION = [0.0, 0.0, 3.0]
 START_YAW_DEG = 0.0
 
 RACING_TRACK_GATES = [
-    {"name": "gate_01", "position": [8.0, -12.0, 1.6], "yaw_deg": 0.0, "semantic_id": 101},
-    {"name": "gate_02", "position": [24.0, -8.0, 1.8], "yaw_deg": 20.0, "semantic_id": 102},
-    {"name": "gate_03", "position": [41.0, -2.0, 1.8], "yaw_deg": 35.0, "semantic_id": 103},
-    {"name": "gate_04", "position": [60.0, 6.0, 2.0], "yaw_deg": 55.0, "semantic_id": 104},
-    # {"name": "gate_05", "position": [80.0, 9.0, 3.3], "yaw_deg": -10.0, "semantic_id": 105},
-    # {"name": "gate_06", "position": [72.0, -3.0, 1.2], "yaw_deg": 180.0, "semantic_id": 106},
-    # {"name": "gate_07", "position": [52.0, -10.0, 1.6], "yaw_deg": -150.0, "semantic_id": 107},
-    # {"name": "gate_08", "position": [33.0, -12.0, 1.7], "yaw_deg": -125.0, "semantic_id": 108},
-    # {"name": "gate_09", "position": [17.0, -6.0, 1.7], "yaw_deg": 120.0, "semantic_id": 109},
-    # {"name": "gate_10", "position": [22.0, 7.0, 2.0], "yaw_deg": 25.0, "semantic_id": 110},
-    # {"name": "gate_11", "position": [10.0, 0.0, 1.7], "yaw_deg": -100.0, "semantic_id": 111},
+    {"name": "gate_01", "position": [13.5, -0.5, 4.4], "yaw_deg": 0.0, "semantic_id": 101},
+    {"name": "gate_02", "position": [36.0, -8.0, 6.9], "yaw_deg": -33.43, "semantic_id": 102},
+    {"name": "gate_03", "position": [53.0, -23.0, 9.9], "yaw_deg": -86.42, "semantic_id": 103},
+    {"name": "gate_04", "position": [50.0, -42.0, 11.4], "yaw_deg": -98.97, "semantic_id": 104},
+    {"name": "gate_05", "position": [50.0, -41.5, 5.4], "yaw_deg": 90.0, "semantic_id": 105},
+    {"name": "gate_06", "position": [40.0, -32.0, 6.4], "yaw_deg": 136.47, "semantic_id": 106},
+    {"name": "gate_07", "position": [30.0, -20.5, 8.4], "yaw_deg": 131.01, "semantic_id": 107},
+    {"name": "gate_08", "position": [23.0, -6.0, 8.4], "yaw_deg": 115.77, "semantic_id": 108},
+    {"name": "gate_09", "position": [9.5, 16.5, 5.9], "yaw_deg": 150.96, "semantic_id": 109},
+    {"name": "gate_10", "position": [-4.0, 23.0, 5.9], "yaw_deg": 199.29, "semantic_id": 110},
+    {"name": "gate_11", "position": [-16.0, 15.5, 3.9], "yaw_deg": -87.99, "semantic_id": 111},
+    {"name": "gate_12", "position": [-10.5, 1.0, 4.4], "yaw_deg": -9.23, "semantic_id": 112},
 ]
 
 

@@ -19,6 +19,15 @@ from aerial_gym.config.controller_config.lee_controller_config import (
 from aerial_gym.config.controller_config.lee_controller_config_skydreamer_collect import (
     control as lee_controller_config_skydreamer_collect,
 )
+from aerial_gym.config.controller_config.lee_controller_config_monorace_racing import (
+    control as lee_controller_config_monorace_racing,
+)
+from aerial_gym.config.controller_config.lee_controller_config_monorace_racing_position import (
+    control as lee_controller_config_monorace_racing_position,
+)
+from aerial_gym.config.controller_config.lee_controller_config_monorace_racing_velocity import (
+    control as lee_controller_config_monorace_racing_velocity,
+)
 from aerial_gym.config.controller_config.no_control_config import (
     control as no_control_config,
 )
@@ -59,6 +68,31 @@ controller_registry.register_controller(
 )
 controller_registry.register_controller(
     "lee_rates_control", LeeRatesController, lee_controller_config
+)
+controller_registry.register_controller(
+    "monorace_racing_acceleration_control",
+    LeeAccelerationController,
+    lee_controller_config_monorace_racing,
+)
+controller_registry.register_controller(
+    "monorace_racing_attitude_control",
+    LeeAttitudeController,
+    lee_controller_config_monorace_racing,
+)
+controller_registry.register_controller(
+    "monorace_racing_velocity_control",
+    LeeVelocityController,
+    lee_controller_config_monorace_racing_velocity,
+)
+controller_registry.register_controller(
+    "monorace_racing_position_control",
+    LeePositionController,
+    lee_controller_config_monorace_racing_position,
+)
+controller_registry.register_controller(
+    "monorace_racing_rates_control",
+    LeeRatesController,
+    lee_controller_config_monorace_racing,
 )
 
 

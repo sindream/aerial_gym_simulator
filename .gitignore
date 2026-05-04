@@ -21,3 +21,7 @@ third_party/dreamerv3/
 third_party/dreamerv3-torch/
 aerial_gym/rl_training/dreamerv3/
 aerial_gym/rl_training/dreamerv3_torch/
+
+yaw_controller_test.png
+yaw_position_test.png
+aerial_gym/task/drone_racing_task/gate_layout_current.svg

@@ -1,422 +1,295 @@
-# Drone Racing Optical Flow Task
+# Drone Racing Task Notes
 
-This document summarizes the current optical-flow-based drone racing task setup used by `drone_racing_task`.
+This document summarizes the current optical-flow racing setup around `drone_racing_task` and its accel-command variants.
 
 ## Entry Points
 
-- Task implementation:
+- Task:
   - `aerial_gym/task/drone_racing_task/drone_racing_task.py`
-- Task config:
+- Accel + yaw-rate variant:
+  - `aerial_gym/task/drone_racing_accel_yawrate_task/drone_racing_accel_yawrate_task.py`
+- Task configs:
   - `aerial_gym/config/task_config/drone_racing_task_config.py`
+  - `aerial_gym/config/task_config/drone_racing_accel_yawrate_task_config.py`
+  - `aerial_gym/config/task_config/drone_racing_body_accel_task_config.py`
 - Environment config:
   - `aerial_gym/config/env_config/drone_racing_env.py`
-- RL-Games training config:
-  - `aerial_gym/rl_training/rl_games/ppo_drone_racing_multimodal.yaml`
-- RL-Games runner:
+- Track / gate layout:
+  - `aerial_gym/config/asset_config/racing_track_asset_config.py`
+  - `resources/models/environment_assets/racing/gate_1p5m.urdf`
+- Training entry:
   - `aerial_gym/rl_training/rl_games/runner_multimodal.py`
-- Repo-local custom RL-Games multimodal model:
-  - `aerial_gym/rl_training/rl_games/aerial_multimodal_models.py`
-- Repo-local custom RL-Games multimodal network builder:
-  - `aerial_gym/rl_training/rl_games/aerial_multimodal_network_builder.py`
 
-## RL-Games Customization
+## RL-Games Setup
 
-This task does not rely on editing the installed `rl_games` package anymore.
-
-The custom multimodal RL-Games extensions required by this task have been vendored into this repository:
+This task uses repo-local RL-Games multimodal extensions instead of patching the installed package:
 
 - `aerial_gym/rl_training/rl_games/aerial_multimodal_models.py`
 - `aerial_gym/rl_training/rl_games/aerial_multimodal_network_builder.py`
 
-`runner_multimodal.py` imports these repo-local files directly and registers:
+Use `runner_multimodal.py` for the racing tasks.
 
-- network name: `aerial_multimodal_actor_critic`
-- model name: `continuous_a2c_logstd_multimodal`
-- algo name: `a2c_continuous_multimodal`
+## Current Robot / Controller
 
-This means:
+Current default racing task uses:
 
-- you still need the base `rl_games` package installed
-- but you do not need to manually patch `site-packages/rl_games` for this task
-- for this optical-flow multimodal setup, use `runner_multimodal.py`, not the default `runner.py`
+- robot: `base_quadrotor_racing`
+- controller: `lee_attitude_control`
+- camera config: `MonoRaceCameraConfig`
 
-## Current Task Summary
+`base_quadrotor_racing` keeps the base quad dynamics path and swaps in the racing camera / IMU stack.
 
-- Task name registered in the registry: `drone_racing_task`
-- Controller: `lee_attitude_control`
-- Robot: `monorace_paper_camera_quadrotor`
-- Action space: 4D attitude command
-  - channel 0: thrust command in `[-1, 1]`
-  - channel 1: roll target scaled by `attitude_max_inclination_rad`
-  - channel 2: pitch target scaled by `attitude_max_inclination_rad`
-  - channel 3: yaw-rate target scaled by `attitude_max_yaw_rate_rad_s`
-- Episode length: `2500` steps
-- Goal logic:
-  - pass all active gates in order
-  - after the last gate, activate a virtual goal point `5.0 m` ahead of the last gate
-  - success when the robot reaches the goal radius `1.0 m`
+## Track
 
-## Observation Structure
+Current track is a 12-gate loop.
 
-The policy receives a multimodal observation:
+- gate centers and yaw come from:
+  - `aerial_gym/config/asset_config/racing_track_asset_config.py`
+- gate geometry is matched to the task logic:
+  - inner opening: `4.0 m`
+  - outer size: `4.64 m`
+  - collision depth: `0.45 m`
+
+Loop behavior:
+
+- after the last gate, target wraps to gate 1 again
+- observation also wraps correctly:
+  - current target -> gate 1
+  - second target -> gate 2
+
+Gate layout visualization:
+
+- script:
+  - `aerial_gym/task/drone_racing_task/visualize_gate_layout.py`
+- generated view:
+  - `aerial_gym/task/drone_racing_task/gate_layout_current.svg`
+
+## Reset / Spawn
+
+Current reset behavior:
+
+- random start gate is enabled
+- robot spawns in front of the selected gate with jitter
+
+Important values:
+
+- `spawn_gate_distance_m = 5.0`
+- `spawn_gate_distance_jitter_m = 1.0`
+- `spawn_gate_lateral_jitter_m = 0.6`
+- `spawn_gate_vertical_jitter_m = 0.4`
+- `spawn_gate_yaw_jitter_deg = 15.0`
+
+## Observation
+
+Policy observation is multimodal:
 
 - `state`: 16D vector
-- `img_observation`: 4 x 12 x 16 optical flow tensor
+- `img_observation`: `4 x 12 x 16` optical flow tensor
 
-### State Vector
+### State Layout
 
-Current `state` layout:
+For the default `drone_racing_task`:
 
-- `0:3`: first target relative position in body frame
-- `3:6`: second target relative position in body frame
+- `0:3`: current target relative position in `vehicle frame`
+- `3:6`: second target relative position in `vehicle frame`
 - `6:9`: body linear velocity
 - `9:13`: robot orientation quaternion
 - `13:16`: body angular velocity
 
-The first target is the current gate or final goal.
-The second target is the next gate or final goal.
+For `drone_racing_accel_yawrate_task`:
 
-## Optical Flow Input
+- `0:3`: current target relative position in `vehicle frame`
+- `3:6`: second target relative position in `vehicle frame`
+- `6:9`: vehicle linear velocity
+- `9:13`: robot orientation quaternion
+- `13:16`: body angular velocity
 
-### Camera Setup
+Notes:
 
-Defined in `aerial_gym/config/sensor_config/camera_config/monorace_camera_config.py`:
+- `vehicle frame` here means yaw-only rotated frame
+- target relative positions are computed as:
+  - world target delta
+  - rotated by `robot_vehicle_orientation`
 
-- render resolution: `48 x 64`
-- horizontal FOV: `150 deg`
-- camera position relative to robot: `[0.12, 0.0, 0.02]`
-- depth range:
-  - min: `0.05 m`
-  - max: `40.0 m`
+### Input Normalization
 
-### Optical Flow Generation
+- vector state:
+  - RL-Games running mean/std normalization is enabled via `normalize_input: True`
+- optical flow image:
+  - no running mean/std normalization
+  - task-side fixed normalization only
+  - divide by `optical_flow_clip_pixels_per_step`
+  - clamp to `[-1, 1]`
 
-Optical flow is computed analytically in `drone_racing_task.py` using:
-
-- depth image
-- body linear velocity
-- body angular velocity
-- pinhole camera intrinsics
-
-The flow is then normalized before entering the network:
-
-- divide by `optical_flow_clip_pixels_per_step`
-- clamp to `[-1, 1]`
-
-Current setting:
+Current optical-flow normalization:
 
 - `optical_flow_clip_pixels_per_step = 8.0`
 
-Interpretation:
+## Camera / Optical Flow
 
-- `8 px/step -> 1.0`
-- `-8 px/step -> -1.0`
-- larger magnitude values saturate at `-1.0` or `1.0`
+Current camera setup comes from `MonoRaceCameraConfig`:
 
-### Dual-Resolution Optical Flow
+- render resolution: `48 x 64`
+- policy resolution after resize: `12 x 16`
+- horizontal FOV: `150 deg`
+- depth range: `0.05 m ~ 40.0 m`
 
-The network input uses two optical flow views:
+Network input is dual optical flow:
 
-- full flow resized from `48 x 64` to `12 x 16`
-- center crop resized to `12 x 16`
+- channels `0:2`: full-frame flow `(u, v)`
+- channels `2:4`: center crop flow `(u, v)`
 
-These are concatenated into a 4-channel tensor:
-
-- channel 0: full flow `u`
-- channel 1: full flow `v`
-- channel 2: center flow `u`
-- channel 3: center flow `v`
-
-Current center crop ratio:
+Center crop ratios:
 
 - height ratio: `0.5`
 - width ratio: `0.5`
 
-That means the center crop is currently:
+## Action Spaces
 
-- `24 x 32` from the original `48 x 64`
-- then resized to `12 x 16`
+### 1. Default Attitude Task
 
-### Debug Visualization
+Task:
 
-If enabled in the task config, env 0 displays optical flow with OpenCV.
+- `drone_racing_task`
 
-Current flags:
+Policy action:
 
-- `show_env0_optical_flow = True`
-- `show_env0_optical_flow_index = 0`
-- `show_env0_optical_flow_scale = 8`
-- `show_env0_optical_flow_wait_ms = 1`
+- 4D
+- `[thrust, roll, pitch, yaw_rate]`
 
-## Network Structure
+Mapping:
 
-Defined in `aerial_gym/rl_training/rl_games/ppo_drone_racing_multimodal.yaml`.
+- thrust channel range in task space: `[-1, 2]`
+- controller mapping:
+  - `thrust = (u + 1) * m g`
+- so effective commanded thrust range is:
+  - `0 ~ 3 m g`
 
-### Image Branch
+Roll / pitch limits:
 
-Current image CNN:
+- `attitude_max_inclination_rad = 40 deg`
 
-1. `Conv2d(4 -> 16, k=5, s=2, p=2)`
-2. `Conv2d(16 -> 32, k=5, s=2, p=2)`
-3. `Conv2d(32 -> 64, k=3, s=2, p=1)`
-4. `Conv2d(64 -> 64, k=3, s=2, p=1)`
-5. `Conv2d(64 -> 64, k=3, s=2, p=1)`
+### 2. Accel + Yaw-Rate Task
 
-For input `4 x 12 x 16`, the spatial sizes become:
+Task:
 
-- `12 x 16 -> 6 x 8 -> 3 x 4 -> 2 x 2 -> 1 x 1 -> 1 x 1`
+- `drone_racing_accel_yawrate_task`
 
-After the CNN:
+Policy action:
 
-- flatten
-- `image_mlp = [256]`
+- 4D
+- `[a_x, a_y, a_z, yaw_rate]`
 
-### State Branch
+Interpretation:
 
-- `state_mlp = [64, 64]`
+- accel command is built in `vehicle frame`
+- then rotated to world with `robot_vehicle_orientation`
+- gravity is applied in world
+- final command is converted to:
+  - thrust
+  - roll
+  - pitch
+  - yaw_rate
+  and passed into the same `lee_attitude_control`
 
-### Fusion and Recurrent Core
+Vertical accel handling:
 
-- concatenate image feature and state feature
-- `GRU(units=128, layers=1)`
-- GRU is applied before the actor/critic MLPs
+- downward accel lower bound is limited by `-g * world_accel_z_down_gravity_scale`
+- upward accel is limited by `world_accel_z_up_max_m_s2`
+- final thrust command is clamped to `[-1, 2]`
 
-### Actor/Critic Heads
+## Reward
 
-- actor MLP: `[192, 96]`
-- critic MLP: `[192, 96]`
+Current reward terms live in:
 
-### Input Normalization
+- `aerial_gym/config/task_config/drone_racing_task_config.py`
 
-- image input: no running-mean/std normalization in RL-Games
-- vector state: RL-Games running-mean/std normalization enabled because `normalize_input: True`
-
-So the image branch uses the task-side fixed flow normalization only.
-
-## Reward and Reset Logic
-
-### Current Reward Terms
-
-Defined in `drone_racing_task_config.py`:
+Main terms:
 
 - progress reward
-- target yaw alignment reward
+- yaw-to-target reward
 - command magnitude penalty
 - command delta penalty
-- obstacle avoidance penalty from nearest depth distance
 - gate pass reward
-- soft upright penalty
 - crash penalty
+- upright penalty
+- altitude-to-target reward
 
-Current key values:
+Current notable values:
 
-- `lambda_1_progress = 1.2`
-- `lambda_2_theta = 0.05`
-- `lambda_3_cmd_norm = -0.001`
-- `lambda_4_cmd_delta = -0.0005`
-- `lambda_5_speed = 0.0`
-- `lambda_6_avoid = -0.01`
-- `lambda_7_pass = 12.0`
+- `lambda_1_progress = 5.0`
+- `lambda_2_theta = 0.20`
+- `lambda_7_pass = 30.0`
 - `lambda_8_crash = -4.0`
-- `lambda_9_upright = -0.01`
+- `lambda_9_upright = -0.02`
+- `lambda_10_altitude = 0.25`
 
-### Current Reset Conditions
+Current yaw-alignment shaping is distance-relaxed:
 
-Current episode termination logic is intentionally simplified:
+- for distances beyond `3 m`, full yaw reward weight is used
+- near the gate, yaw reward fades down to `25%`
 
-- failure reset if either:
-  - environment contact collision is reported by `obs_dict["crashes"]`
-  - the robot crosses the gate plane outside the valid gate opening
-- success reset if:
-  - final goal after the last gate is reached
-- timeout reset if:
-  - `sim_steps >= episode_len_steps`
+This is controlled by:
 
-The following are still computed for debugging but are not currently used as reset conditions:
+- `theta_relax_distance_m = 3.0`
+- `theta_near_gate_min_scale = 0.25`
 
-- `gate_collision`
-- `ground_collision`
-- `out_of_bounds`
-- `excessive_body_rate`
+## Reset Logic
 
-### Reset Reason Debug Print
+Current failure reset logic is intentionally simple:
 
-When enabled, env 0 prints reset reasons in the console:
-
-- `show_env0_reset_reason = True`
-
-Useful fields in the log:
-
-- `contact`
-- `wrong_gate_cross`
-- `gate_collision`
-- `ground`
-- `oob`
-- `body_rate`
-
-## Obstacles and Track Editing
-
-### Main Track and Obstacle Config
-
-Edit this file:
-
-- `aerial_gym/config/asset_config/racing_track_asset_config.py`
-
-Important variables:
-
-- `RACING_TRACK_GATES`
-  - gate positions, yaw angles, semantic ids
-- `RANDOM_CYLINDER_OBSTACLE_COUNT`
-  - current value: `10`
-- `RANDOM_CYLINDER_RADIUS_METERS`
-  - current value: `0.40`
-- `RANDOM_CYLINDER_HEIGHT_METERS`
-  - current value: `4.5`
-- `TRACK_BOUNDS_MIN`
-- `TRACK_BOUNDS_MAX`
-- `START_POSITION`
-- `START_YAW_DEG`
-
-### Current Active Gates
-
-Right now only 4 gates are active in `RACING_TRACK_GATES`.
-The later gates are commented out.
-
-### Gate Asset
-
-Gate geometry and collision asset:
-
-- `resources/models/environment_assets/racing/gate_1p5m.urdf`
-
-Current relevant sizes:
-
-- gate inner size: `1.5 m`
-- gate outer size: `3.0 m`
-- gate collision depth: `0.08 m`
-
-### Cylinder Obstacle Asset
-
-Obstacle geometry:
-
-- `resources/models/environment_assets/racing/cylinder_obstacle.urdf`
-
-Placement ranges are controlled by:
-
-- `RaceCylinderObstacleAssetParams` in `racing_track_asset_config.py`
-
-### Gate Exclusion Rule for Cylinders
-
-Random cylinders are additionally moved away from gates inside:
-
-- `DroneRacingTask._resample_cylinders_away_from_gates()`
-
-The exclusion radius is controlled by:
-
-- `cylinder_gate_exclusion_radius_m`
-
-## Robot Collision Setup
-
-Robot URDF:
-
-- `resources/robots/monorace/monorace.urdf`
-
-Current collision behavior:
-
-- base body collision is enabled
-- propeller collision geometry has been removed
-- propellers remain visual-only
-
-This means environment contact collisions should now be driven by the body collision mesh instead of propeller collision cylinders.
-
-## Training Command
-
-Main training command:
-
-```bash
-python aerial_gym/rl_training/rl_games/runner_multimodal.py \
-  --train \
-  --file aerial_gym/rl_training/rl_games/ppo_drone_racing_multimodal.yaml \
-  --headless false \
-  --use_warp false \
-  --num_envs 32
-```
+- simulator contact collision
+- wrong gate crossing
 
 Notes:
 
-- `--headless false` shows the viewer if graphics are available
-- for this task, using `--use_warp false` is recommended when visually testing behavior because otherwise ground contact can be missed
-- `--num_envs` overrides the YAML env count
-- `runner_multimodal.py` will create `runs/` and `nn/` directories automatically
+- `gate_collision`, `ground_collision`, `out_of_bounds`, and `excessive_body_rate` are still computed and logged
+- but they are not currently added into the crash boolean
 
-For headless training:
+## Physics Notes
+
+Current env config uses:
+
+- `num_physics_steps_per_env_step_mean = 2`
+
+Important:
+
+- this does **not** change `sim.dt` itself
+- it does change how many physics steps happen per env / policy step
+- so it effectively changes the control update period seen by the policy
+
+If you want to change true simulator timestep resolution instead, adjust:
+
+- `aerial_gym/config/sim_config/base_sim_config.py`
+
+## Training Commands
+
+Default attitude task:
 
 ```bash
 python aerial_gym/rl_training/rl_games/runner_multimodal.py \
   --train \
   --file aerial_gym/rl_training/rl_games/ppo_drone_racing_multimodal.yaml \
+  --num_envs 32 \
   --headless true \
-  --use_warp false \
-  --num_envs 32
+  --use_warp false
 ```
 
-## Play / Evaluation Command
-
-Example play command:
+Accel + yaw-rate task:
 
 ```bash
 python aerial_gym/rl_training/rl_games/runner_multimodal.py \
-  --play \
-  --file aerial_gym/rl_training/rl_games/ppo_drone_racing_multimodal.yaml \
-  --checkpoint runs/<run_name>/nn/<checkpoint_name>.pth \
-  --headless false \
-  --use_warp false \
-  --num_envs 1
+  --train \
+  --file aerial_gym/rl_training/rl_games/ppo_drone_racing_multimodal_accel_yawrate.yaml \
+  --num_envs 32 \
+  --headless true \
+  --use_warp false
 ```
 
-If `--use_warp true` is used during testing, ground contact may not be detected as expected in this task setup.
+## Commit Notes
 
-## What To Edit For Common Changes
+Generated local debug artifacts that should not be committed:
 
-### Change gates
-
-- edit `RACING_TRACK_GATES` in `aerial_gym/config/asset_config/racing_track_asset_config.py`
-
-### Change random obstacle count or size
-
-- edit `RANDOM_CYLINDER_OBSTACLE_COUNT`
-- edit `RANDOM_CYLINDER_RADIUS_METERS`
-- edit `RANDOM_CYLINDER_HEIGHT_METERS`
-
-### Change optical flow scaling
-
-- edit `optical_flow_clip_pixels_per_step` in `aerial_gym/config/task_config/drone_racing_task_config.py`
-
-### Change camera resolution or FOV
-
-- edit `aerial_gym/config/sensor_config/camera_config/monorace_camera_config.py`
-
-### Change crop ratio
-
-- edit the task config values used by:
-  - `central_flow_crop_height_ratio`
-  - `central_flow_crop_width_ratio`
-
-If not explicitly added to the config, the task currently defaults both to `0.5`.
-
-### Change reward weights
-
-- edit `reward_parameters` in `aerial_gym/config/task_config/drone_racing_task_config.py`
-
-### Change reset behavior
-
-- edit `_compute_reward_terms()` in `aerial_gym/task/drone_racing_task/drone_racing_task.py`
-
-## Commit Reminder
-
-Training artifacts should not be committed.
-Typical generated outputs to exclude:
-
-- `runs/`
-- `wandb/`
-- `rollout_viz/`
-- checkpoints like `*.pth`
+- `yaw_controller_test.png`
+- `yaw_position_test.png`
+- `aerial_gym/task/drone_racing_task/gate_layout_current.svg`

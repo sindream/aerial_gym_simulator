@@ -25,7 +25,7 @@ class DroneRacingEnvCfg:
         num_env_actions = 0
         env_spacing = 50.0
 
-        num_physics_steps_per_env_step_mean = 1
+        num_physics_steps_per_env_step_mean = 2
         num_physics_steps_per_env_step_std = 0
 
         render_viewer_every_n_steps = 1

@@ -1,0 +1,138 @@
+params:
+  seed: 10
+
+  algo:
+    name: a2c_continuous_multimodal
+
+  model:
+    name: continuous_a2c_logstd_multimodal
+
+  load_checkpoint: False
+
+  network:
+    name: aerial_multimodal_actor_critic
+    separate: False
+    observation_key: state
+    state_key: state
+    image_observation_key: img_observation
+    value_activation: None
+
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+        mu_init:
+          name: default
+        sigma_init:
+          name: const_initializer
+          val: 0
+        fixed_sigma: True
+
+    cnn:
+      type: conv2d
+      permute_input: False
+      activation: elu
+      initializer:
+        name: default
+      convs:
+        - filters: 16
+          kernel_size: 5
+          strides: 2
+          padding: 2
+        - filters: 32
+          kernel_size: 5
+          strides: 2
+          padding: 2
+        - filters: 64
+          kernel_size: 3
+          strides: 2
+          padding: 1
+        - filters: 64
+          kernel_size: 3
+          strides: 2
+          padding: 1
+        - filters: 64
+          kernel_size: 3
+          strides: 2
+          padding: 1
+
+    image_mlp:
+      units: [256]
+      activation: elu
+      initializer:
+        name: default
+
+    state_mlp:
+      units: [64, 64]
+      activation: elu
+      initializer:
+        name: default
+
+    mlp:
+      units: []
+      activation: elu
+      initializer:
+        name: default
+
+    actor_mlp:
+      units: [192, 96]
+      activation: elu
+      initializer:
+        name: default
+
+    critic_mlp:
+      units: [192, 96]
+      activation: elu
+      initializer:
+        name: default
+
+    rnn:
+      name: gru
+      units: 128
+      layers: 1
+      before_mlp: True
+      layer_norm: False
+
+  config:
+    env_name: drone_racing_accel_yawrate_task
+    env_config:
+      num_envs: 32
+      headless: True
+      use_warp: True
+
+    name: drone_racing_optical_flow_accel_yawrate
+    reward_shaper:
+      scale_value: 1.0
+
+    normalize_advantage: True
+    gamma: 0.99
+    tau: 0.95
+    ppo: True
+    learning_rate: 1e-4
+    lr_schedule: adaptive
+    kl_threshold: 0.01
+    save_best_after: 20
+    score_to_win: 100000
+    grad_norm: 1.0
+    entropy_coef: 0.001
+    truncate_grads: True
+    e_clip: 0.2
+    clip_value: False
+    num_actors: 32
+    horizon_length: 16
+    seq_length: 16
+    minibatch_size: 128
+    mini_epochs: 4
+    critic_coef: 2
+    normalize_input: True
+    bounds_loss_coef: 0.0001
+    max_epochs: 2000000000
+    normalize_value: True
+    use_diagnostics: True
+    value_bootstrap: True
+    torch_compile: False
+
+    player:
+      render: False
+      deterministic: True
+      games_num: 100

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<robot name="race_gate_1p5m">
+<robot name="race_gate_4m">
   <link name="base_link">
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -16,7 +16,7 @@
     </inertial>
     <visual name="top_bar_visual">
       <geometry>
-        <box size="0.08 3.00 0.75"/>
+        <box size="0.45 4.64 0.32"/>
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <material name="GateOrange">
@@ -25,7 +25,7 @@
     </visual>
     <collision name="top_bar_collision">
       <geometry>
-        <box size="0.08 3.00 0.75"/>
+        <box size="0.45 4.64 0.32"/>
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </collision>
@@ -39,7 +39,7 @@
     </inertial>
     <visual name="bottom_bar_visual">
       <geometry>
-        <box size="0.08 3.00 0.75"/>
+        <box size="0.45 4.64 0.32"/>
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <material name="GateOrange">
@@ -48,7 +48,7 @@
     </visual>
     <collision name="bottom_bar_collision">
       <geometry>
-        <box size="0.08 3.00 0.75"/>
+        <box size="0.45 4.64 0.32"/>
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </collision>
@@ -62,7 +62,7 @@
     </inertial>
     <visual name="left_bar_visual">
       <geometry>
-        <box size="0.08 0.75 3.00"/>
+        <box size="0.45 0.32 4.64"/>
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <material name="GateOrange">
@@ -71,7 +71,7 @@
     </visual>
     <collision name="left_bar_collision">
       <geometry>
-        <box size="0.08 0.75 3.00"/>
+        <box size="0.45 0.32 4.64"/>
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </collision>
@@ -85,7 +85,7 @@
     </inertial>
     <visual name="right_bar_visual">
       <geometry>
-        <box size="0.08 0.75 3.00"/>
+        <box size="0.45 0.32 4.64"/>
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <material name="GateOrange">
@@ -94,7 +94,7 @@
     </visual>
     <collision name="right_bar_collision">
       <geometry>
-        <box size="0.08 0.75 3.00"/>
+        <box size="0.45 0.32 4.64"/>
       </geometry>
       <origin xyz="0 0 0" rpy="0 0 0"/>
     </collision>
@@ -103,24 +103,24 @@
   <joint name="base_to_top_bar" type="fixed" dont_collapse="true">
     <parent link="base_link"/>
     <child link="top_bar"/>
-    <origin xyz="0 0 1.125" rpy="0 0 0"/>
+    <origin xyz="0 0 2.16" rpy="0 0 0"/>
   </joint>
 
   <joint name="base_to_bottom_bar" type="fixed" dont_collapse="true">
     <parent link="base_link"/>
     <child link="bottom_bar"/>
-    <origin xyz="0 0 -1.125" rpy="0 0 0"/>
+    <origin xyz="0 0 -2.16" rpy="0 0 0"/>
   </joint>
 
   <joint name="base_to_left_bar" type="fixed" dont_collapse="true">
     <parent link="base_link"/>
     <child link="left_bar"/>
-    <origin xyz="0 1.125 0" rpy="0 0 0"/>
+    <origin xyz="0 2.16 0" rpy="0 0 0"/>
   </joint>
 
   <joint name="base_to_right_bar" type="fixed" dont_collapse="true">
     <parent link="base_link"/>
     <child link="right_bar"/>
-    <origin xyz="0 -1.125 0" rpy="0 0 0"/>
+    <origin xyz="0 -2.16 0" rpy="0 0 0"/>
   </joint>
 </robot>

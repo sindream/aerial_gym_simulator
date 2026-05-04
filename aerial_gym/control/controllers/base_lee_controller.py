@@ -86,7 +86,7 @@ class BaseLeeController(BaseController):
 
     def reset_idx(self, env_ids):
         if env_ids is None:
-            env_ids = torch.arange(self.K_rot_tensor.shape[0])
+            env_ids = torch.arange(self.num_envs, device=self.device)
         self.randomize_params(env_ids)
 
     def randomize_params(self, env_ids):
@@ -143,6 +143,15 @@ class BaseLeeController(BaseController):
             + feed_forward_body_rates
         )
         return torque
+
+    def clamp_desired_quat_tilt(self, desired_quat):
+        max_tilt = getattr(self.cfg, "max_inclination_angle_rad", None)
+        if max_tilt is None:
+            return desired_quat
+        desired_euler = ssa(get_euler_xyz_tensor(desired_quat))
+        desired_euler[:, 0] = torch.clamp(desired_euler[:, 0], -max_tilt, max_tilt)
+        desired_euler[:, 1] = torch.clamp(desired_euler[:, 1], -max_tilt, max_tilt)
+        return quat_from_euler_xyz_tensor(desired_euler)
 
 
 @torch.jit.script

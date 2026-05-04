@@ -6,6 +6,7 @@ from aerial_gym.config.robot_config.base_rov_config import BaseROVCfg
 from aerial_gym.config.robot_config.base_quad_root_link_control_config import (
     BaseQuadRootLinkControlCfg,
 )
+from aerial_gym.config.robot_config.base_quad_racing_config import BaseQuadRacingCfg
 
 from aerial_gym.config.robot_config.lmf1_config import LMF1Cfg
 from aerial_gym.config.robot_config.lmf2_config import LMF2Cfg
@@ -40,6 +41,7 @@ from aerial_gym.config.robot_config.base_quad_config import *
 
 # register the robot classes here
 robot_registry.register("base_quadrotor", BaseMultirotor, BaseQuadCfg)
+robot_registry.register("base_quadrotor_racing", BaseMultirotor, BaseQuadRacingCfg)
 robot_registry.register("base_octarotor", BaseMultirotor, BaseOctarotorCfg)
 robot_registry.register("base_random", BaseMultirotor, BaseRandCfg)
 robot_registry.register("base_quad_root_link_control", BaseMultirotor, BaseQuadRootLinkControlCfg)

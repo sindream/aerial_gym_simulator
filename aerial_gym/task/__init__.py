@@ -20,6 +20,12 @@ from aerial_gym.task.position_setpoint_task_acceleration_sim2real.position_setpo
 
 from aerial_gym.task.navigation_task.navigation_task import NavigationTask
 from aerial_gym.task.drone_racing_task.drone_racing_task import DroneRacingTask
+from aerial_gym.task.drone_racing_body_accel_task.drone_racing_body_accel_task import (
+    DroneRacingBodyAccelTask,
+)
+from aerial_gym.task.drone_racing_accel_yawrate_task.drone_racing_accel_yawrate_task import (
+    DroneRacingAccelYawrateTask,
+)
 from aerial_gym.task.drone_racing_paper_task.drone_racing_paper_task import (
     DroneRacingPaperTask,
 )
@@ -52,6 +58,12 @@ from aerial_gym.config.task_config.navigation_task_config import (
 )
 from aerial_gym.config.task_config.drone_racing_task_config import (
     task_config as drone_racing_task_config,
+)
+from aerial_gym.config.task_config.drone_racing_body_accel_task_config import (
+    task_config as drone_racing_body_accel_task_config,
+)
+from aerial_gym.config.task_config.drone_racing_accel_yawrate_task_config import (
+    task_config as drone_racing_accel_yawrate_task_config,
 )
 from aerial_gym.config.task_config.drone_racing_paper_task_config import (
     task_config as drone_racing_paper_task_config,
@@ -92,6 +104,16 @@ task_registry.register_task(
 
 task_registry.register_task("navigation_task", NavigationTask, navigation_task_config)
 task_registry.register_task("drone_racing_task", DroneRacingTask, drone_racing_task_config)
+task_registry.register_task(
+    "drone_racing_body_accel_task",
+    DroneRacingBodyAccelTask,
+    drone_racing_body_accel_task_config,
+)
+task_registry.register_task(
+    "drone_racing_accel_yawrate_task",
+    DroneRacingAccelYawrateTask,
+    drone_racing_accel_yawrate_task_config,
+)
 task_registry.register_task(
     "drone_racing_paper_task", DroneRacingPaperTask, drone_racing_paper_task_config
 )

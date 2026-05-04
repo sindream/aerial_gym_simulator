@@ -30,7 +30,8 @@ class LeePositionController(BaseLeeController):
             setpoint_velocity=torch.zeros_like(self.robot_vehicle_linvel),
         )
         # logger.debug(f"accel: {self.accel}, command_actions: {command_actions}")
-        forces = (self.accel - self.gravity) * self.mass
+        gravity_compensation_scale = getattr(self.cfg, "gravity_compensation_scale", 1.0)
+        forces = (self.accel - gravity_compensation_scale * self.gravity) * self.mass
         # thrust command is transformed by the body orientation's z component
         self.wrench_command[:, 2] = torch.sum(
             forces * quat_to_rotation_matrix(self.robot_orientation)[:, :, 2], dim=1
@@ -40,6 +41,7 @@ class LeePositionController(BaseLeeController):
         self.desired_quat[:] = calculate_desired_orientation_for_position_velocity_control(
             forces, command_actions[:, 3], self.buffer_tensor
         )
+        self.desired_quat[:] = self.clamp_desired_quat_tilt(self.desired_quat)
 
         self.euler_angle_rates[:] = 0.0
         self.desired_body_angvel[:] = 0.0

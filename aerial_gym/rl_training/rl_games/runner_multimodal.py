@@ -188,6 +188,26 @@ def register_aerial_envs():
     )
 
     env_configurations.register(
+        "drone_racing_body_accel_task",
+        {
+            "env_creator": lambda **kwargs: task_registry.make_task(
+                "drone_racing_body_accel_task", **kwargs
+            ),
+            "vecenv_type": "AERIAL-RLGPU-DICT",
+        },
+    )
+
+    env_configurations.register(
+        "drone_racing_accel_yawrate_task",
+        {
+            "env_creator": lambda **kwargs: task_registry.make_task(
+                "drone_racing_accel_yawrate_task", **kwargs
+            ),
+            "vecenv_type": "AERIAL-RLGPU-DICT",
+        },
+    )
+
+    env_configurations.register(
         "position_setpoint_task_reconfigurable",
         {
             "env_creator": lambda **kwargs: task_registry.make_task(

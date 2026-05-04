@@ -37,6 +37,7 @@ class LeeVelocityController(BaseLeeController):
         self.desired_quat[:] = calculate_desired_orientation_for_position_velocity_control(
             forces, self.robot_euler_angles[:, 2], self.buffer_tensor
         )
+        self.desired_quat[:] = self.clamp_desired_quat_tilt(self.desired_quat)
 
         self.euler_angle_rates[:, :2] = 0.0
         self.euler_angle_rates[:, 2] = command_actions[:, 3]

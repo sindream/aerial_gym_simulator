@@ -13,12 +13,12 @@ except Exception:
 
 from aerial_gym.utils.logging import CustomLogger
 from aerial_gym.utils.math import (
+    get_euler_xyz_tensor,
     quat_axis,
     quat_from_euler_xyz_tensor,
     quat_rotate,
     quat_rotate_inverse,
 )
-from aerial_gym.config.sensor_config.camera_config.monorace_camera_config import MonoRaceCameraConfig
 
 from gym.spaces import Box, Dict
 
@@ -129,6 +129,12 @@ class DroneRacingTask(BaseTask):
         )
         self.successes = torch.zeros_like(self.terminations)
         self.last_contact_collision = torch.zeros_like(self.terminations)
+        self.last_contact_force_norm = torch.zeros(
+            self.num_envs, device=self.device, dtype=torch.float32, requires_grad=False
+        )
+        self.last_contact_force_peak = torch.zeros(
+            self.num_envs, device=self.device, dtype=torch.float32, requires_grad=False
+        )
         self.last_gate_collision = torch.zeros_like(self.terminations)
         self.last_wrong_gate_cross = torch.zeros_like(self.terminations)
         self.last_ground_collision = torch.zeros_like(self.terminations)
@@ -165,12 +171,11 @@ class DroneRacingTask(BaseTask):
                 ),
             }
         )
-        self.action_space = Box(
-            low=-1.0,
-            high=1.0,
-            shape=(self.task_config.action_space_dim,),
-            dtype=np.float32,
-        )
+        action_low = np.full((self.task_config.action_space_dim,), -1.0, dtype=np.float32)
+        action_high = np.full((self.task_config.action_space_dim,), 1.0, dtype=np.float32)
+        action_low[0] = float(getattr(self.task_config, "thrust_command_min", -1.0))
+        action_high[0] = float(getattr(self.task_config, "thrust_command_max", 1.0))
+        self.action_space = Box(low=action_low, high=action_high, dtype=np.float32)
 
         self.task_obs = {
             "state": torch.zeros(
@@ -256,12 +261,16 @@ class DroneRacingTask(BaseTask):
         )
 
     def _init_optical_flow_tensors(self):
-        self.camera_max_range = float(MonoRaceCameraConfig.max_range)
-        self.camera_min_range = float(MonoRaceCameraConfig.min_range)
-        self.camera_normalize_range = bool(MonoRaceCameraConfig.normalize_range)
+        camera_config = getattr(self.task_config, "camera_config", None)
+        if camera_config is None:
+            raise ValueError("drone_racing_task requires task_config.camera_config to be set.")
+
+        self.camera_max_range = float(camera_config.max_range)
+        self.camera_min_range = float(camera_config.min_range)
+        self.camera_normalize_range = bool(camera_config.normalize_range)
         self.flow_clip_value = float(self.task_config.optical_flow_clip_pixels_per_step)
-        self.camera_render_height = int(MonoRaceCameraConfig.height)
-        self.camera_render_width = int(MonoRaceCameraConfig.width)
+        self.camera_render_height = int(camera_config.height)
+        self.camera_render_width = int(camera_config.width)
         self.central_flow_crop_height_ratio = float(
             getattr(self.task_config, "central_flow_crop_height_ratio", 0.5)
         )
@@ -270,7 +279,7 @@ class DroneRacingTask(BaseTask):
         )
 
         camera_euler_deg = torch.tensor(
-            [MonoRaceCameraConfig.euler_frame_rot_deg],
+            [camera_config.euler_frame_rot_deg],
             device=self.device,
             dtype=torch.float32,
             requires_grad=False,
@@ -280,7 +289,7 @@ class DroneRacingTask(BaseTask):
             self.num_envs, -1
         )
         self.camera_local_position = torch.tensor(
-            MonoRaceCameraConfig.nominal_position,
+            camera_config.nominal_position,
             device=self.device,
             dtype=torch.float32,
             requires_grad=False,
@@ -288,7 +297,7 @@ class DroneRacingTask(BaseTask):
 
         image_width = float(self.camera_render_width)
         image_height = float(self.camera_render_height)
-        horizontal_fov_rad = np.deg2rad(MonoRaceCameraConfig.horizontal_fov_deg)
+        horizontal_fov_rad = np.deg2rad(camera_config.horizontal_fov_deg)
         self.flow_fx = image_width * 0.5 / np.tan(horizontal_fov_rad * 0.5)
         self.flow_fy = self.flow_fx
         self.flow_cx = image_width * 0.5
@@ -335,6 +344,9 @@ class DroneRacingTask(BaseTask):
             gate_positions = self._current_gate_positions(env_ids)
             goal_active = self.goal_active[env_ids]
 
+        if getattr(self.task_config, "loop_track", False):
+            return gate_positions
+
         goal_positions = self.final_goal_position.unsqueeze(0).expand_as(gate_positions)
         return torch.where(goal_active.unsqueeze(1), goal_positions, gate_positions)
 
@@ -348,6 +360,9 @@ class DroneRacingTask(BaseTask):
 
         second_gate_index = (current_gate_index + 1) % self.num_gates
         second_gate_positions = self.gate_positions[second_gate_index]
+        if getattr(self.task_config, "loop_track", False):
+            return second_gate_positions
+
         goal_positions = self.final_goal_position.unsqueeze(0).expand_as(second_gate_positions)
         return torch.where(goal_active.unsqueeze(1), goal_positions, second_gate_positions)
 
@@ -407,7 +422,18 @@ class DroneRacingTask(BaseTask):
             torch.sin(theta_drone - theta_gate),
             torch.cos(theta_drone - theta_gate),
         )
-        return self.reward_params["lambda_2_theta"] * torch.exp(-torch.abs(yaw_error))
+        target_distance = torch.norm(target_positions - robot_positions, dim=1)
+        relax_distance = torch.clamp(self.reward_params["theta_relax_distance_m"], min=1.0e-6)
+        near_gate_min_scale = torch.clamp(
+            self.reward_params["theta_near_gate_min_scale"], min=0.0, max=1.0
+        )
+        distance_ratio = torch.clamp(target_distance / relax_distance, min=0.0, max=1.0)
+        distance_scale = near_gate_min_scale + (1.0 - near_gate_min_scale) * distance_ratio
+        return (
+            self.reward_params["lambda_2_theta"]
+            * distance_scale
+            * torch.exp(-torch.abs(yaw_error))
+        )
 
     def _nearest_collision_distance_from_depth(self):
         depth_image = self.obs_dict["depth_range_pixels"][:, 0]
@@ -485,13 +511,82 @@ class DroneRacingTask(BaseTask):
             return
 
         robot_state = self.obs_dict["robot_state_tensor"]
-        robot_state[env_ids, 0:3] = self.start_position
-        robot_state[env_ids, 3:7] = self.start_quat
+        if bool(getattr(self.task_config, "randomize_start_gate", False)):
+            gate_positions = self._current_gate_positions(env_ids)
+            gate_quats = self._current_gate_quats(env_ids)
+            gate_eulers = get_euler_xyz_tensor(gate_quats)
+
+            distance_center = float(getattr(self.task_config, "spawn_gate_distance_m", 3.0))
+            distance_jitter = float(
+                getattr(self.task_config, "spawn_gate_distance_jitter_m", 0.75)
+            )
+            lateral_jitter = float(
+                getattr(self.task_config, "spawn_gate_lateral_jitter_m", 0.6)
+            )
+            vertical_jitter = float(
+                getattr(self.task_config, "spawn_gate_vertical_jitter_m", 0.4)
+            )
+            yaw_jitter_rad = np.deg2rad(
+                float(getattr(self.task_config, "spawn_gate_yaw_jitter_deg", 15.0))
+            )
+
+            local_offset = torch.zeros(
+                (len(env_ids), 3),
+                device=self.device,
+                dtype=torch.float32,
+                requires_grad=False,
+            )
+            local_offset[:, 0] = -distance_center + (
+                torch.rand(len(env_ids), device=self.device, dtype=torch.float32) * 2.0 - 1.0
+            ) * distance_jitter
+            local_offset[:, 1] = (
+                torch.rand(len(env_ids), device=self.device, dtype=torch.float32) * 2.0 - 1.0
+            ) * lateral_jitter
+            local_offset[:, 2] = (
+                torch.rand(len(env_ids), device=self.device, dtype=torch.float32) * 2.0 - 1.0
+            ) * vertical_jitter
+
+            world_position = gate_positions + quat_rotate(gate_quats, local_offset)
+            world_position[:, 2] = torch.clamp(
+                world_position[:, 2],
+                min=float(getattr(self.task_config, "spawn_min_height_m", 0.25)),
+            )
+
+            spawn_eulers = torch.zeros(
+                (len(env_ids), 3),
+                device=self.device,
+                dtype=torch.float32,
+                requires_grad=False,
+            )
+            spawn_eulers[:, 2] = gate_eulers[:, 2] + (
+                torch.rand(len(env_ids), device=self.device, dtype=torch.float32) * 2.0 - 1.0
+            ) * yaw_jitter_rad
+            spawn_quat = quat_from_euler_xyz_tensor(spawn_eulers)
+
+            robot_state[env_ids, 0:3] = world_position
+            robot_state[env_ids, 3:7] = spawn_quat
+        else:
+            robot_state[env_ids, 0:3] = self.start_position
+            robot_state[env_ids, 3:7] = self.start_quat
         robot_state[env_ids, 7:13] = 0.0
         self.obs_dict["robot_actions"][env_ids] = 0.0
         self.obs_dict["robot_prev_actions"][env_ids] = 0.0
         self.sim_env.robot_manager.robot.update_states()
         self.sim_env.IGE_env.write_to_sim()
+
+    def _sample_start_gate_indices(self, env_ids):
+        if len(env_ids) == 0:
+            return
+        if not bool(getattr(self.task_config, "randomize_start_gate", False)):
+            self.current_gate_index[env_ids] = 0
+            return
+        self.current_gate_index[env_ids] = torch.randint(
+            low=0,
+            high=self.num_gates,
+            size=(len(env_ids),),
+            device=self.device,
+            dtype=torch.long,
+        )
 
     def _reset_task_buffers(self, env_ids):
         self.current_gate_index[env_ids] = 0
@@ -505,6 +600,8 @@ class DroneRacingTask(BaseTask):
         self.truncations[env_ids] = False
         self.rewards[env_ids] = 0.0
         self.last_contact_collision[env_ids] = False
+        self.last_contact_force_norm[env_ids] = 0.0
+        self.last_contact_force_peak[env_ids] = 0.0
         self.last_gate_collision[env_ids] = False
         self.last_wrong_gate_cross[env_ids] = False
         self.last_ground_collision[env_ids] = False
@@ -519,6 +616,7 @@ class DroneRacingTask(BaseTask):
         self.sim_env.reset()
         env_ids = torch.arange(self.num_envs, device=self.device)
         self._reset_task_buffers(env_ids)
+        self._sample_start_gate_indices(env_ids)
         self._resample_cylinders_away_from_gates(env_ids)
         self._set_robot_start_pose(env_ids)
         self.sim_env.render(render_components="sensors")
@@ -531,6 +629,7 @@ class DroneRacingTask(BaseTask):
         if len(env_ids) == 0:
             return
         self._reset_task_buffers(env_ids)
+        self._sample_start_gate_indices(env_ids)
         self._resample_cylinders_away_from_gates(env_ids)
         self._set_robot_start_pose(env_ids)
         self.sim_env.render(render_components="sensors")
@@ -541,11 +640,19 @@ class DroneRacingTask(BaseTask):
         return self.sim_env.render()
 
     def _normalize_action_commands(self, raw_actions):
-        return 0.5 * (torch.clamp(raw_actions, -1.0, 1.0) + 1.0)
+        thrust_min = float(getattr(self.task_config, "thrust_command_min", -1.0))
+        thrust_max = float(getattr(self.task_config, "thrust_command_max", 1.0))
+        normalized_actions = torch.clamp(raw_actions, -1.0, 1.0)
+        normalized_actions[:, 0] = torch.clamp(raw_actions[:, 0], thrust_min, thrust_max)
+        return 0.5 * (normalized_actions + 1.0)
 
     def _actions_to_attitude_commands(self, raw_actions):
         commands = torch.zeros_like(raw_actions)
-        commands[:, 0] = torch.clamp(raw_actions[:, 0], -1.0, 1.0)
+        commands[:, 0] = torch.clamp(
+            raw_actions[:, 0],
+            float(getattr(self.task_config, "thrust_command_min", -1.0)),
+            float(getattr(self.task_config, "thrust_command_max", 1.0)),
+        )
         commands[:, 1] = (
             torch.clamp(raw_actions[:, 1], -1.0, 1.0)
             * self.task_config.attitude_max_inclination_rad
@@ -721,6 +828,12 @@ class DroneRacingTask(BaseTask):
             intermediate_gate_pass
         ] + 1
 
+        if getattr(self.task_config, "loop_track", False):
+            self.completed_laps[final_gate_pass] += 1
+            self.current_gate_index[final_gate_pass] = 0
+            self.goal_active[final_gate_pass] = False
+            return torch.zeros_like(final_gate_pass)
+
         self.completed_laps[final_gate_pass] += 1
         activate_goal = final_gate_pass & (self.completed_laps >= self.task_config.num_laps)
         wrap_to_start = final_gate_pass & (~activate_goal)
@@ -806,6 +919,10 @@ class DroneRacingTask(BaseTask):
         speed_reward = self.reward_params["lambda_5_speed"] * (
             speed - float(self.task_config.desired_speed_m_s)
         )
+        altitude_error = torch.abs(active_target_positions[:, 2] - robot_positions[:, 2])
+        altitude_reward = self.reward_params["lambda_10_altitude"] * torch.exp(
+            -altitude_error / torch.clamp(self.reward_params["altitude_error_scale_m"], min=1.0e-6)
+        )
         body_z_axis_world = quat_axis(self.obs_dict["robot_orientation"], 2)
         upright_alignment = body_z_axis_world[:, 2].clamp(-1.0, 1.0)
         upright_penalty = self.reward_params["lambda_9_upright"] * torch.clamp(
@@ -839,6 +956,14 @@ class DroneRacingTask(BaseTask):
         )
         excessive_body_rate = torch.norm(body_rates, dim=1) > self.max_body_rate
 
+        contact_force_norm = torch.norm(self.obs_dict["robot_contact_force_tensor"], dim=1)
+        if "robot_contact_force_tensor_all" in self.obs_dict:
+            contact_force_peak = torch.norm(
+                self.obs_dict["robot_contact_force_tensor_all"], dim=2
+            ).amax(dim=1)
+        else:
+            contact_force_peak = contact_force_norm
+
         contact_collision = self.obs_dict["crashes"].clone()
         crashes = contact_collision | wrong_gate_cross
 
@@ -847,12 +972,16 @@ class DroneRacingTask(BaseTask):
         goal_reached = self.goal_active & (
             updated_target_distance <= self.task_config.goal_reach_radius_m
         )
+        if getattr(self.task_config, "loop_track", False):
+            goal_reached[:] = False
         success = goal_reached & (~crashes)
 
         timeouts = self.sim_env.sim_steps >= self.task_config.episode_len_steps
         truncations = success | timeouts
 
         self.last_contact_collision[:] = contact_collision
+        self.last_contact_force_norm[:] = contact_force_norm
+        self.last_contact_force_peak[:] = contact_force_peak
         self.last_gate_collision[:] = gate_collision
         self.last_wrong_gate_cross[:] = wrong_gate_cross
         self.last_ground_collision[:] = ground_collision
@@ -865,6 +994,7 @@ class DroneRacingTask(BaseTask):
             + theta_reward
             + command_reward
             + speed_reward
+            + altitude_reward
             + upright_penalty
             + avoid_reward
             + gate_reward
@@ -906,6 +1036,8 @@ class DroneRacingTask(BaseTask):
             "goal_active": self.goal_active.clone(),
             "goal_position": self.final_goal_position.unsqueeze(0).expand(self.num_envs, -1).clone(),
             "contact_collision": self.last_contact_collision.clone(),
+            "contact_force_norm": self.last_contact_force_norm.clone(),
+            "contact_force_peak": self.last_contact_force_peak.clone(),
             "gate_collision": self.last_gate_collision.clone(),
             "wrong_gate_cross": self.last_wrong_gate_cross.clone(),
             "ground_collision": self.last_ground_collision.clone(),
@@ -925,6 +1057,8 @@ class DroneRacingTask(BaseTask):
                 f"crash={int(self.terminations[0].item())} "
                 f"timeout={int(self.last_timeouts[0].item())} "
                 f"contact={int(self.last_contact_collision[0].item())} "
+                f"contact_force_norm={float(self.last_contact_force_norm[0].item()):.5f} "
+                f"contact_force_peak={float(self.last_contact_force_peak[0].item()):.5f} "
                 f"gate_collision={int(self.last_gate_collision[0].item())} "
                 f"wrong_gate_cross={int(self.last_wrong_gate_cross[0].item())} "
                 f"ground={int(self.last_ground_collision[0].item())} "
@@ -957,15 +1091,15 @@ class DroneRacingTask(BaseTask):
         second_target_positions = self._second_target_positions()
         relative_first_target_world = first_target_positions - self.obs_dict["robot_position"]
         relative_second_target_world = second_target_positions - self.obs_dict["robot_position"]
-        relative_first_target_body = quat_rotate_inverse(
-            self.obs_dict["robot_orientation"], relative_first_target_world
+        relative_first_target_vehicle = quat_rotate_inverse(
+            self.obs_dict["robot_vehicle_orientation"], relative_first_target_world
         )
-        relative_second_target_body = quat_rotate_inverse(
-            self.obs_dict["robot_orientation"], relative_second_target_world
+        relative_second_target_vehicle = quat_rotate_inverse(
+            self.obs_dict["robot_vehicle_orientation"], relative_second_target_world
         )
 
-        self.task_obs["state"][:, 0:3] = relative_first_target_body
-        self.task_obs["state"][:, 3:6] = relative_second_target_body
+        self.task_obs["state"][:, 0:3] = relative_first_target_vehicle
+        self.task_obs["state"][:, 3:6] = relative_second_target_vehicle
         self.task_obs["state"][:, 6:9] = self.obs_dict["robot_body_linvel"]
         self.task_obs["state"][:, 9:13] = self.obs_dict["robot_orientation"]
         self.task_obs["state"][:, 13:16] = self.obs_dict["robot_body_angvel"]

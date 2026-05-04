@@ -10,6 +10,7 @@ class BaseController:
 
     def init_tensors(self, global_tensor_dict):
         if self.mode == "robot":
+            self.dt = global_tensor_dict["dt"]
             self.robot_position = global_tensor_dict["robot_position"]
             self.robot_orientation = global_tensor_dict["robot_orientation"]
             self.robot_linvel = global_tensor_dict["robot_linvel"]
@@ -23,6 +24,7 @@ class BaseController:
             self.robot_inertia = global_tensor_dict["robot_inertia"]
             self.gravity = global_tensor_dict["gravity"]
         if self.mode == "obstacle":
+            self.dt = global_tensor_dict["dt"]
             self.robot_position = global_tensor_dict["obstacle_position"]
             self.robot_orientation = global_tensor_dict["obstacle_orientation"]
             self.robot_linvel = global_tensor_dict["obstacle_linvel"]

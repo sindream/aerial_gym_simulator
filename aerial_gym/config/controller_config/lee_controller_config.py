@@ -16,7 +16,7 @@ class control:
 
     num_actions = 4
     max_inclination_angle_rad = np.pi / 3.0
-    max_yaw_rate = np.pi / 3.0
+    max_yaw_rate = np.pi
 
     K_pos_tensor_max = [3.0, 3.0, 2.0]  # used for lee_position_control only
     K_pos_tensor_min = [2.0, 2.0, 1.0]  # used for lee_position_control only
