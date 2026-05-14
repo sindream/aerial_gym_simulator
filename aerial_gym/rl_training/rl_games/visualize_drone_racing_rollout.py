@@ -27,7 +27,7 @@ def get_args():
     parser.add_argument(
         "--file",
         type=str,
-        default="aerial_gym/rl_training/rl_games/ppo_drone_racing_paper.yaml",
+        default="aerial_gym/rl_training/rl_games/ppo_drone_racing_multimodal.yaml",
         help="Path to the rl_games yaml config.",
     )
     parser.add_argument(
@@ -136,14 +136,22 @@ def load_yaml_config(config_path):
 
 def extract_policy_observation_space(task):
     if hasattr(task.observation_space, "spaces"):
-        return task.observation_space.spaces["observations"]
+        vector_key = "state" if "state" in task.observation_space.spaces else "observations"
+        policy_spaces = {
+            vector_key: task.observation_space.spaces[vector_key],
+        }
+        if "img_observation" in task.observation_space.spaces:
+            policy_spaces["img_observation"] = task.observation_space.spaces["img_observation"]
+        from gym import spaces
+
+        return spaces.Dict(policy_spaces)
     return task.observation_space
 
 
 def build_player(eval_config, observation_space, action_space, checkpoint_path, device_name):
-    from rl_games.torch_runner import Runner
+    from aerial_gym.rl_training.rl_games.runner_multimodal import MultimodalRunner
 
-    runner = Runner()
+    runner = MultimodalRunner()
     runner.load(eval_config)
     runner.params["config"]["device_name"] = device_name
     runner.params["config"]["env_info"] = {
@@ -203,14 +211,24 @@ def get_info_tensor(infos, key, fallback_tensor):
     return fallback_tensor
 
 
+def extract_policy_obs(task_obs):
+    if not isinstance(task_obs, dict):
+        return task_obs
+    vector_key = "state" if "state" in task_obs else "observations"
+    policy_obs = {vector_key: task_obs[vector_key][0]}
+    if "img_observation" in task_obs:
+        policy_obs["img_observation"] = task_obs["img_observation"][0]
+    return policy_obs
+
+
 def rollout_episode(task, player, args, episode_index):
     print(
         f"[rollout] episode {episode_index + 1}: reset "
         f"(max_steps={args.max_steps or int(task.task_config.episode_len_steps)})"
     )
-    task.task_config.return_state_before_reset = True
+    task.task_config.return_state_before_reset = False
     task_obs, *_ = task.reset()
-    obs = task_obs["observations"][0]
+    obs = extract_policy_obs(task_obs)
     if player is not None:
         player.reset()
 
@@ -245,7 +263,7 @@ def rollout_episode(task, player, args, episode_index):
             action = action.to(task.rewards.device).flatten()
 
         task_obs, rewards, terminated, truncated, infos = task.step(action.unsqueeze(0))
-        obs = task_obs["observations"][0]
+        obs = extract_policy_obs(task_obs)
         last_info = infos
 
         reward_value = float(rewards[0].item())
@@ -354,8 +372,11 @@ def add_gate_geometry_3d(ax, gate_positions, gate_yaws, gate_half_width, gate_ha
         ax.plot(corners[:, 0], corners[:, 1], corners[:, 2], color="tab:orange", linewidth=1.0)
 
 
-def set_equal_3d_axes(ax, positions, gate_positions, gate_half_width, gate_half_height):
-    all_points = np.concatenate([positions, gate_positions], axis=0)
+def set_equal_3d_axes(ax, positions, gate_positions, gate_half_width, gate_half_height, obstacle_positions=None):
+    all_points = [positions, gate_positions]
+    if obstacle_positions is not None and len(obstacle_positions) > 0:
+        all_points.append(obstacle_positions)
+    all_points = np.concatenate(all_points, axis=0)
     min_xyz = all_points.min(axis=0).astype(np.float32)
     max_xyz = all_points.max(axis=0).astype(np.float32)
 
@@ -385,6 +406,32 @@ def split_position_segments(positions, jump_threshold=5.0):
     return [segment for segment in np.split(positions, split_indices) if len(segment) > 0]
 
 
+def extract_gate_yaws(task):
+    if hasattr(task, "gate_yaws"):
+        return to_numpy(task.gate_yaws)
+    if hasattr(task, "gate_quats"):
+        gate_quats = to_numpy(task.gate_quats)
+        qx = gate_quats[:, 0]
+        qy = gate_quats[:, 1]
+        qz = gate_quats[:, 2]
+        qw = gate_quats[:, 3]
+        siny_cosp = 2.0 * (qw * qz + qx * qy)
+        cosy_cosp = qw * qw + qx * qx - qy * qy - qz * qz
+        return np.arctan2(siny_cosp, cosy_cosp).astype(np.float32)
+    raise AttributeError("Task does not expose gate_yaws or gate_quats")
+
+
+def extract_obstacle_positions(task):
+    num_obstacles = int(getattr(task.task_config, "num_random_cylinders", 0))
+    if num_obstacles <= 0:
+        return np.zeros((0, 3), dtype=np.float32)
+    if "env_asset_state_tensor" not in task.obs_dict:
+        return np.zeros((0, 3), dtype=np.float32)
+    return to_numpy(task.obs_dict["env_asset_state_tensor"][0, :num_obstacles, 0:3]).astype(
+        np.float32
+    )
+
+
 def plot_rollout_matplotlib(task, rollout, save_path, show_plot):
     plt = configure_matplotlib(show_plot)
     from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
@@ -393,7 +440,9 @@ def plot_rollout_matplotlib(task, rollout, save_path, show_plot):
     speeds = np.asarray(rollout["speeds"], dtype=np.float32)
     position_segments = split_position_segments(positions)
     gate_positions = to_numpy(task.gate_positions)
-    gate_yaws = to_numpy(task.gate_yaws)
+    gate_yaws = extract_gate_yaws(task)
+    obstacle_positions = extract_obstacle_positions(task)
+    obstacle_radius = float(getattr(task.task_config, "random_cylinder_radius_m", 0.0))
     gate_half_width = float(task.task_config.gate_pass_half_width)
     gate_half_height = float(task.task_config.gate_pass_half_height)
 
@@ -408,11 +457,27 @@ def plot_rollout_matplotlib(task, rollout, save_path, show_plot):
     ax_3d.scatter(positions[0, 0], positions[0, 1], positions[0, 2], color="tab:green", s=50, label="start")
     ax_3d.scatter(positions[-1, 0], positions[-1, 1], positions[-1, 2], color="tab:red", s=50, label="end")
     ax_3d.scatter(gate_positions[:, 0], gate_positions[:, 1], gate_positions[:, 2], color="tab:orange", s=18)
+    if len(obstacle_positions) > 0:
+        ax_3d.scatter(
+            obstacle_positions[:, 0],
+            obstacle_positions[:, 1],
+            obstacle_positions[:, 2],
+            color="tab:cyan",
+            s=30,
+            label="obstacles",
+        )
     ax_3d.set_title("3D Rollout")
     ax_3d.set_xlabel("x [m]")
     ax_3d.set_ylabel("y [m]")
     ax_3d.set_zlabel("z [m]")
-    set_equal_3d_axes(ax_3d, positions, gate_positions, gate_half_width, gate_half_height)
+    set_equal_3d_axes(
+        ax_3d,
+        positions,
+        gate_positions,
+        gate_half_width,
+        gate_half_height,
+        obstacle_positions=obstacle_positions,
+    )
     ax_3d.legend(loc="upper right")
 
     add_gate_geometry_2d(ax_top, gate_positions, gate_yaws, gate_half_width)
@@ -420,6 +485,22 @@ def plot_rollout_matplotlib(task, rollout, save_path, show_plot):
         ax_top.plot(segment[:, 0], segment[:, 1], color="tab:blue", linewidth=2.0, label="trajectory")
     ax_top.scatter(positions[0, 0], positions[0, 1], color="tab:green", s=50, label="start")
     ax_top.scatter(positions[-1, 0], positions[-1, 1], color="tab:red", s=50, label="end")
+    if len(obstacle_positions) > 0:
+        for obstacle_center in obstacle_positions:
+            obstacle_circle = plt.Circle(
+                (obstacle_center[0], obstacle_center[1]),
+                obstacle_radius,
+                color="tab:cyan",
+                alpha=0.35,
+            )
+            ax_top.add_patch(obstacle_circle)
+        ax_top.scatter(
+            obstacle_positions[:, 0],
+            obstacle_positions[:, 1],
+            color="tab:cyan",
+            s=20,
+            label="obstacles",
+        )
 
     if rollout["gate_pass_steps"]:
         pass_indices = np.clip(np.asarray(rollout["gate_pass_steps"]), 0, len(positions) - 1)
@@ -486,7 +567,8 @@ def save_rollout_npz(task, rollout, save_path):
         gate_pass_steps=np.asarray(rollout["gate_pass_steps"], dtype=np.int32),
         crash_steps=np.asarray(rollout["crash_steps"], dtype=np.int32),
         gate_positions=to_numpy(task.gate_positions),
-        gate_yaws=to_numpy(task.gate_yaws),
+        gate_yaws=extract_gate_yaws(task),
+        obstacle_positions=extract_obstacle_positions(task),
     )
 
 

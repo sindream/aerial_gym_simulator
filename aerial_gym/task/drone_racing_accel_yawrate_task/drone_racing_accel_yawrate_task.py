@@ -113,6 +113,9 @@ class DroneRacingAccelYawrateTask(DroneRacingTask):
     def process_obs_for_task(self):
         first_target_positions = self._active_target_positions()
         second_target_positions = self._second_target_positions()
+        current_gate_yaws = self._current_gate_yaws()
+        second_gate_yaws = self._second_gate_yaws()
+        robot_yaws = get_euler_xyz_tensor(self.obs_dict["robot_vehicle_orientation"])[:, 2]
         relative_first_target_world = first_target_positions - self.obs_dict["robot_position"]
         relative_second_target_world = second_target_positions - self.obs_dict["robot_position"]
         relative_first_target_vehicle = quat_rotate_inverse(
@@ -121,12 +124,18 @@ class DroneRacingAccelYawrateTask(DroneRacingTask):
         relative_second_target_vehicle = quat_rotate_inverse(
             self.obs_dict["robot_vehicle_orientation"], relative_second_target_world
         )
+        relative_first_gate_yaw = ssa(current_gate_yaws - robot_yaws)
+        relative_second_gate_yaw = ssa(second_gate_yaws - robot_yaws)
 
         self.task_obs["state"][:, 0:3] = relative_first_target_vehicle
         self.task_obs["state"][:, 3:6] = relative_second_target_vehicle
         self.task_obs["state"][:, 6:9] = self.obs_dict["robot_vehicle_linvel"]
         self.task_obs["state"][:, 9:13] = self.obs_dict["robot_orientation"]
         self.task_obs["state"][:, 13:16] = self.obs_dict["robot_body_angvel"]
+        self.task_obs["state"][:, 16] = torch.sin(relative_first_gate_yaw)
+        self.task_obs["state"][:, 17] = torch.cos(relative_first_gate_yaw)
+        self.task_obs["state"][:, 18] = torch.sin(relative_second_gate_yaw)
+        self.task_obs["state"][:, 19] = torch.cos(relative_second_gate_yaw)
 
         depth_image = self.obs_dict["depth_range_pixels"][:, 0]
         optical_flow = self._compute_optical_flow(depth_image)

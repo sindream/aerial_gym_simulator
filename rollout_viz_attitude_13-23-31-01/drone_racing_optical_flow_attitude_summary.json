@@ -1,0 +1,62 @@
+[
+  {
+    "episode_index": 0,
+    "image_path": "/root/workspace/aerial_gym_ws/src/aerial_gym_simulator/rollout_viz_attitude_13-23-31-01/drone_racing_optical_flow_attitude_episode_000.png",
+    "data_path": "/root/workspace/aerial_gym_ws/src/aerial_gym_simulator/rollout_viz_attitude_13-23-31-01/drone_racing_optical_flow_attitude_episode_000.npz",
+    "total_reward": 608.9141646325588,
+    "steps": 406,
+    "done": true,
+    "success": false,
+    "crash": true,
+    "final_gate_index": 1,
+    "final_lap_count": 1
+  },
+  {
+    "episode_index": 1,
+    "image_path": "/root/workspace/aerial_gym_ws/src/aerial_gym_simulator/rollout_viz_attitude_13-23-31-01/drone_racing_optical_flow_attitude_episode_001.png",
+    "data_path": "/root/workspace/aerial_gym_ws/src/aerial_gym_simulator/rollout_viz_attitude_13-23-31-01/drone_racing_optical_flow_attitude_episode_001.npz",
+    "total_reward": 3956.2338017088477,
+    "steps": 2500,
+    "done": true,
+    "success": false,
+    "crash": false,
+    "final_gate_index": 7,
+    "final_lap_count": 2
+  },
+  {
+    "episode_index": 2,
+    "image_path": "/root/workspace/aerial_gym_ws/src/aerial_gym_simulator/rollout_viz_attitude_13-23-31-01/drone_racing_optical_flow_attitude_episode_002.png",
+    "data_path": "/root/workspace/aerial_gym_ws/src/aerial_gym_simulator/rollout_viz_attitude_13-23-31-01/drone_racing_optical_flow_attitude_episode_002.npz",
+    "total_reward": 913.4424575762823,
+    "steps": 637,
+    "done": true,
+    "success": false,
+    "crash": true,
+    "final_gate_index": 8,
+    "final_lap_count": 0
+  },
+  {
+    "episode_index": 3,
+    "image_path": "/root/workspace/aerial_gym_ws/src/aerial_gym_simulator/rollout_viz_attitude_13-23-31-01/drone_racing_optical_flow_attitude_episode_003.png",
+    "data_path": "/root/workspace/aerial_gym_ws/src/aerial_gym_simulator/rollout_viz_attitude_13-23-31-01/drone_racing_optical_flow_attitude_episode_003.npz",
+    "total_reward": 3895.395035102498,
+    "steps": 2500,
+    "done": true,
+    "success": false,
+    "crash": false,
+    "final_gate_index": 4,
+    "final_lap_count": 2
+  },
+  {
+    "episode_index": 4,
+    "image_path": "/root/workspace/aerial_gym_ws/src/aerial_gym_simulator/rollout_viz_attitude_13-23-31-01/drone_racing_optical_flow_attitude_episode_004.png",
+    "data_path": "/root/workspace/aerial_gym_ws/src/aerial_gym_simulator/rollout_viz_attitude_13-23-31-01/drone_racing_optical_flow_attitude_episode_004.npz",
+    "total_reward": 4205.2728801248595,
+    "steps": 2500,
+    "done": true,
+    "success": false,
+    "crash": false,
+    "final_gate_index": 10,
+    "final_lap_count": 2
+  }
+]

@@ -6,7 +6,7 @@ from aerial_gym.config.asset_config.racing_track_asset_config import (
     GATE_OUTER_SIZE_METERS,
     NUM_LAPS,
     RANDOM_CYLINDER_RADIUS_METERS,
-    RANDOM_CYLINDER_OBSTACLE_COUNT,
+    TOTAL_RANDOM_CYLINDER_OBSTACLE_COUNT,
     RACING_TRACK_GATES,
     START_POSITION,
     START_YAW_DEG,
@@ -32,16 +32,16 @@ class task_config:
     headless = True
     device = "cuda:0"
 
-    observation_space_dim = 16
+    observation_space_dim = 20
     privileged_observation_space_dim = 0
-    state_observation_dim = 16
+    state_observation_dim = 20
     image_observation_channels = 4
     image_height = 12
     image_width = 16
 
     action_space_dim = 4
     thrust_command_min = -1.0
-    thrust_command_max = 2.0
+    thrust_command_max = 3.0
     episode_len_steps = 2500
     return_state_before_reset = False
 
@@ -51,12 +51,13 @@ class task_config:
     start_position = START_POSITION
     start_yaw_deg = START_YAW_DEG
     randomize_start_gate = True
-    spawn_gate_distance_m = 5.0
-    spawn_gate_distance_jitter_m = 1.0
+    spawn_after_previous_gate_forward_m = 0.5
+    spawn_after_previous_gate_forward_jitter_m = 0.25
     spawn_gate_lateral_jitter_m = 0.6
     spawn_gate_vertical_jitter_m = 0.4
     spawn_gate_yaw_jitter_deg = 15.0
     spawn_min_height_m = 0.25
+    retry_failed_target_gate = True
 
     bounds_min = TRACK_BOUNDS_MIN
     bounds_max = TRACK_BOUNDS_MAX
@@ -76,7 +77,7 @@ class task_config:
     ground_collision_requires_speed = True
     max_body_rate_deg_s = 1700.0
 
-    attitude_max_inclination_rad = np.deg2rad(40.0)
+    attitude_max_inclination_rad = np.deg2rad(45.0)
     attitude_max_yaw_rate_rad_s = lee_controller_config.max_yaw_rate
 
     optical_flow_clip_pixels_per_step = 8.0
@@ -90,26 +91,32 @@ class task_config:
     show_env0_optical_flow_wait_ms = 1
     show_env0_optical_flow_window_name = "Env0 Optical Flow"
     show_env0_reset_reason = True
-    num_random_cylinders = RANDOM_CYLINDER_OBSTACLE_COUNT
+    num_random_cylinders = TOTAL_RANDOM_CYLINDER_OBSTACLE_COUNT
     random_cylinder_radius_m = RANDOM_CYLINDER_RADIUS_METERS
-    cylinder_gate_exclusion_radius_m = 0.5 * GATE_OUTER_SIZE_METERS + RANDOM_CYLINDER_RADIUS_METERS
+    cylinder_gate_exclusion_radius_m = (
+        0.5 * GATE_OUTER_SIZE_METERS + RANDOM_CYLINDER_RADIUS_METERS + 2.0
+    )
     post_gate_goal_distance_m = 5.0
     goal_reach_radius_m = 1.0
 
     reward_parameters = {
-        "lambda_1_progress": 5.0,
+        "lambda_1_progress": 6.0,
         "lambda_2_theta": 0.20,
         "lambda_3_cmd_norm": -0.0005,
         "lambda_4_cmd_delta": -0.0002,
-        "lambda_5_speed": 0.0,
-        "lambda_6_avoid": 0.0,
-        "lambda_7_pass": 30.0,
-        "lambda_8_crash": -4.0,
+        "lambda_5_speed": 0.00,
+        "lambda_6_avoid": -0.01,
+        "lambda_7_pass": 40.0,
+        "lambda_8_crash": -15.0,
         "avoid_bias_b_omega": 0.5,
-        "lambda_9_upright": -0.02,
+        "lambda_9_upright": 0.0,
         "upright_cos_threshold": 1.0,
-        "lambda_10_altitude": 0.25,
-        "altitude_error_scale_m": 1.0,
-        "theta_relax_distance_m": 3.0,
-        "theta_near_gate_min_scale": 0.25,
+        "lambda_10_altitude": 0.5,
+        "lambda_11_velocity_target_alignment": -0.15,
+        "lambda_12_overspeed": -0.08,
+        "altitude_error_scale_m": 0.0,
+        "velocity_alignment_min_speed_m_s": 0.5,
+        "overspeed_reference_speed_m_s": 10.0,
+        "theta_relax_distance_m": 2.0,
+        "theta_near_gate_min_scale": 0.0,
     }

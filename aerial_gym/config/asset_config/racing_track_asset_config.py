@@ -14,9 +14,16 @@ GATE_INNER_SIZE_METERS = 4.0
 GATE_OUTER_SIZE_METERS = 4.64
 GATE_COLLISION_DEPTH_METERS = 0.45
 
-RANDOM_CYLINDER_OBSTACLE_COUNT = 0
-RANDOM_CYLINDER_RADIUS_METERS = 0.20
-RANDOM_CYLINDER_HEIGHT_METERS = 4.5
+RANDOM_CYLINDER_OBSTACLE_COUNT = 12
+RANDOM_HORIZONTAL_CYLINDER_OBSTACLE_COUNT = 12
+RANDOM_TILTED_CYLINDER_OBSTACLE_COUNT = 12
+TOTAL_RANDOM_CYLINDER_OBSTACLE_COUNT = (
+    RANDOM_CYLINDER_OBSTACLE_COUNT
+    + RANDOM_HORIZONTAL_CYLINDER_OBSTACLE_COUNT
+    + RANDOM_TILTED_CYLINDER_OBSTACLE_COUNT
+)
+RANDOM_CYLINDER_RADIUS_METERS = 0.55
+RANDOM_CYLINDER_HEIGHT_METERS = 9.0
 RANDOM_CYLINDER_SEMANTIC_ID = 150
 
 START_POSITION = [0.0, 0.0, 3.0]
@@ -174,6 +181,132 @@ class RaceCylinderObstacleAssetParams:
         0.0,
         0.0,
         0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ]
+
+
+class RaceHorizontalCylinderObstacleAssetParams:
+    num_assets = RANDOM_HORIZONTAL_CYLINDER_OBSTACLE_COUNT
+    asset_folder = f"{AERIAL_GYM_DIRECTORY}/resources/models/environment_assets/racing"
+    file = "cylinder_obstacle.urdf"
+
+    collision_mask = 1
+    disable_gravity = False
+    replace_cylinder_with_capsule = False
+    flip_visual_attachments = True
+    density = 0.001
+    angular_damping = 0.1
+    linear_damping = 0.1
+    max_angular_velocity = 100.0
+    max_linear_velocity = 100.0
+    armature = 0.001
+    collapse_fixed_joints = True
+    fix_base_link = True
+    specific_filepath = None
+    color = [90, 220, 160]
+    keep_in_env = True
+    body_semantic_label = 0
+    link_semantic_label = 0
+    per_link_semantic = False
+    semantic_masked_links = {}
+    place_force_sensor = False
+    force_sensor_parent_link = "base_link"
+    force_sensor_transform = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    use_collision_mesh_instead_of_visual = False
+    semantic_id = RANDOM_CYLINDER_SEMANTIC_ID
+    min_state_ratio = [
+        0.18,
+        0.10,
+        (0.5 * RANDOM_CYLINDER_HEIGHT_METERS - TRACK_BOUNDS_MIN[2])
+        / (TRACK_BOUNDS_MAX[2] - TRACK_BOUNDS_MIN[2]),
+        np.deg2rad(75.0),
+        np.deg2rad(-15.0),
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ]
+    max_state_ratio = [
+        0.62,
+        0.90,
+        (0.5 * RANDOM_CYLINDER_HEIGHT_METERS - TRACK_BOUNDS_MIN[2])
+        / (TRACK_BOUNDS_MAX[2] - TRACK_BOUNDS_MIN[2]),
+        np.deg2rad(105.0),
+        np.deg2rad(15.0),
+        2.0 * np.pi,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ]
+
+
+class RaceTiltedCylinderObstacleAssetParams:
+    num_assets = RANDOM_TILTED_CYLINDER_OBSTACLE_COUNT
+    asset_folder = f"{AERIAL_GYM_DIRECTORY}/resources/models/environment_assets/racing"
+    file = "cylinder_obstacle.urdf"
+
+    collision_mask = 1
+    disable_gravity = False
+    replace_cylinder_with_capsule = False
+    flip_visual_attachments = True
+    density = 0.001
+    angular_damping = 0.1
+    linear_damping = 0.1
+    max_angular_velocity = 100.0
+    max_linear_velocity = 100.0
+    armature = 0.001
+    collapse_fixed_joints = True
+    fix_base_link = True
+    specific_filepath = None
+    color = [150, 210, 110]
+    keep_in_env = True
+    body_semantic_label = 0
+    link_semantic_label = 0
+    per_link_semantic = False
+    semantic_masked_links = {}
+    place_force_sensor = False
+    force_sensor_parent_link = "base_link"
+    force_sensor_transform = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    use_collision_mesh_instead_of_visual = False
+    semantic_id = RANDOM_CYLINDER_SEMANTIC_ID
+    min_state_ratio = [
+        0.18,
+        0.10,
+        (0.5 * RANDOM_CYLINDER_HEIGHT_METERS - TRACK_BOUNDS_MIN[2])
+        / (TRACK_BOUNDS_MAX[2] - TRACK_BOUNDS_MIN[2]),
+        np.deg2rad(25.0),
+        np.deg2rad(-50.0),
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ]
+    max_state_ratio = [
+        0.62,
+        0.90,
+        (0.5 * RANDOM_CYLINDER_HEIGHT_METERS - TRACK_BOUNDS_MIN[2])
+        / (TRACK_BOUNDS_MAX[2] - TRACK_BOUNDS_MIN[2]),
+        np.deg2rad(65.0),
+        np.deg2rad(50.0),
+        2.0 * np.pi,
         1.0,
         0.0,
         0.0,

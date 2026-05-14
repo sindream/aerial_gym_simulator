@@ -1,6 +1,8 @@
 from aerial_gym.config.asset_config.racing_track_asset_config import (
     RANDOM_CYLINDER_OBSTACLE_COUNT,
     RaceCylinderObstacleAssetParams,
+    RaceHorizontalCylinderObstacleAssetParams,
+    RaceTiltedCylinderObstacleAssetParams,
     TRACK_BOUNDS_MIN,
     TRACK_BOUNDS_MAX,
     TRACK_GATE_ASSET_CLASSES,
@@ -17,6 +19,14 @@ TRACK_ASSET_TYPE_TO_DICT_MAP = {
 }
 TRACK_INCLUDE_ASSET_TYPE["race_cylinders"] = RANDOM_CYLINDER_OBSTACLE_COUNT > 0
 TRACK_ASSET_TYPE_TO_DICT_MAP["race_cylinders"] = RaceCylinderObstacleAssetParams
+TRACK_INCLUDE_ASSET_TYPE["race_horizontal_cylinders"] = (
+    RaceHorizontalCylinderObstacleAssetParams.num_assets > 0
+)
+TRACK_ASSET_TYPE_TO_DICT_MAP["race_horizontal_cylinders"] = RaceHorizontalCylinderObstacleAssetParams
+TRACK_INCLUDE_ASSET_TYPE["race_tilted_cylinders"] = (
+    RaceTiltedCylinderObstacleAssetParams.num_assets > 0
+)
+TRACK_ASSET_TYPE_TO_DICT_MAP["race_tilted_cylinders"] = RaceTiltedCylinderObstacleAssetParams
 
 
 class DroneRacingEnvCfg:
