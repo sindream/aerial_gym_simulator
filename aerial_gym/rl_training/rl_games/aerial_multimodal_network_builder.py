@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from rl_games.algos_torch import torch_ext
 from rl_games.algos_torch.network_builder import NetworkBuilder
@@ -33,6 +34,39 @@ class AerialMultimodalA2CBuilder(NetworkBuilder):
             self.actions_num = actions_num
             self.vector_obs_key = self._resolve_vector_key(input_shape)
             self.image_obs_key = self._resolve_image_key(input_shape)
+            self.critic_obs_key = self._resolve_optional_key(
+                input_shape, self.critic_observation_key
+            )
+            self.gain_target_obs_key = self._resolve_optional_key(
+                input_shape, self.gain_target_key
+            )
+            self.sysid_target_obs_key = self._resolve_optional_key(
+                input_shape, self.sysid_target_key
+            )
+            if self.sysid_target_obs_key is not None or self.sysid_target_dim > 0:
+                self.estimator_target_obs_key = self.sysid_target_obs_key
+                self.estimator_target_size = (
+                    input_shape[self.sysid_target_obs_key][0]
+                    if self.sysid_target_obs_key is not None
+                    else self.sysid_target_dim
+                )
+                self.estimator_loss_name = "sysid_estimation_loss"
+                self.estimation_coef = self.sysid_estimation_coef
+            elif self.gain_target_obs_key is not None or self.gain_target_dim > 0:
+                self.estimator_target_obs_key = self.gain_target_obs_key
+                self.estimator_target_size = (
+                    input_shape[self.gain_target_obs_key][0]
+                    if self.gain_target_obs_key is not None
+                    else self.gain_target_dim
+                )
+                self.estimator_loss_name = "rate_gain_estimation_loss"
+                self.estimation_coef = self.gain_estimation_coef
+            else:
+                self.estimator_target_obs_key = None
+                self.estimator_target_size = 0
+                self.estimator_loss_name = "estimation_loss"
+                self.estimation_coef = 0.0
+            self._aux_loss = None
 
             vector_input_shape = input_shape[self.vector_obs_key]
             vector_input_size = vector_input_shape[0]
@@ -98,12 +132,38 @@ class AerialMultimodalA2CBuilder(NetworkBuilder):
                         self.layer_norm = nn.LayerNorm(self.rnn_units)
                     trunk_output_size = self.rnn_units
 
+            self.estimator_mlp = None
+            self.estimator = None
+            self.last_estimator_prediction = None
+            estimator_input_size = 0
+            if self.estimator_target_size > 0 and (
+                self.estimation_coef > 0.0 or self.append_estimator_to_actor_critic
+            ):
+                self.estimator_mlp, estimator_out_size = self._build_optional_mlp(
+                    trunk_output_size,
+                    self.estimation_mlp_cfg,
+                )
+                self.estimator = nn.Linear(estimator_out_size, self.estimator_target_size)
+                if self.append_estimator_to_actor_critic:
+                    estimator_input_size = self.estimator_target_size
+
+            downstream_input_size = trunk_output_size + estimator_input_size
             self.actor_mlp, actor_out_size = self._build_optional_mlp(
-                trunk_output_size,
+                downstream_input_size,
                 self.actor_mlp_cfg,
             )
+            critic_input_size = downstream_input_size
+            self.critic_state_mlp = None
+            if self.critic_obs_key is not None:
+                critic_state_input_shape = input_shape[self.critic_obs_key]
+                critic_state_input_size = critic_state_input_shape[0]
+                self.critic_state_mlp, critic_state_out_size = self._build_optional_mlp(
+                    critic_state_input_size,
+                    self.critic_state_mlp_cfg,
+                )
+                critic_input_size += critic_state_out_size
             self.critic_mlp, critic_out_size = self._build_optional_mlp(
-                trunk_output_size,
+                critic_input_size,
                 self.critic_mlp_cfg,
             )
 
@@ -193,6 +253,11 @@ class AerialMultimodalA2CBuilder(NetworkBuilder):
                     return candidate
             return None
 
+        def _resolve_optional_key(self, input_shape, key):
+            if key is not None and key in input_shape:
+                return key
+            return None
+
         def _get_vector_obs(self, obs):
             if self.vector_obs_key in obs:
                 return obs[self.vector_obs_key]
@@ -210,6 +275,11 @@ class AerialMultimodalA2CBuilder(NetworkBuilder):
             if self.image_obs_key is None:
                 return None
             return obs.get(self.image_obs_key, None)
+
+        def _get_optional_obs(self, obs, key):
+            if key is None or not isinstance(obs, dict):
+                return None
+            return obs.get(key, None)
 
         def forward(self, obs_dict):
             obs = obs_dict["obs"]
@@ -284,8 +354,36 @@ class AerialMultimodalA2CBuilder(NetworkBuilder):
                 if not isinstance(states, tuple):
                     states = (states,)
 
-            actor_out = self.actor_mlp(out)
-            critic_out = self.critic_mlp(out)
+            estimator_prediction = None
+            if self.estimator_mlp is not None and self.estimator is not None:
+                estimator_prediction = self.estimator(self.estimator_mlp(out))
+            self.last_estimator_prediction = (
+                estimator_prediction.detach() if estimator_prediction is not None else None
+            )
+
+            downstream_input = out
+            if self.append_estimator_to_actor_critic and estimator_prediction is not None:
+                downstream_input = torch.cat([downstream_input, estimator_prediction], dim=1)
+
+            actor_out = self.actor_mlp(downstream_input)
+            critic_input = downstream_input
+            critic_obs = self._get_optional_obs(obs, self.critic_obs_key)
+            if critic_obs is not None and self.critic_state_mlp is not None:
+                critic_features = self.critic_state_mlp(critic_obs)
+                critic_input = torch.cat([critic_input, critic_features], dim=1)
+            critic_out = self.critic_mlp(critic_input)
+
+            self._aux_loss = None
+            gain_target = self._get_optional_obs(obs, self.estimator_target_obs_key)
+            if (
+                gain_target is not None
+                and estimator_prediction is not None
+                and self.estimation_coef > 0.0
+            ):
+                self._aux_loss = {
+                    self.estimator_loss_name: self.estimation_coef
+                    * F.mse_loss(estimator_prediction, gain_target)
+                }
 
             value = self.value_act(self.value(critic_out))
             mu = self.mu_act(self.mu(actor_out))
@@ -304,6 +402,16 @@ class AerialMultimodalA2CBuilder(NetworkBuilder):
             self.vector_obs_key = params.get("observation_key", None)
             self.state_key = params.get("state_key", "state")
             self.image_observation_key = params.get("image_observation_key", "img_observation")
+            self.critic_observation_key = params.get("critic_observation_key", None)
+            self.gain_target_key = params.get("gain_target_key", None)
+            self.sysid_target_key = params.get("sysid_target_key", None)
+            self.gain_target_dim = int(params.get("gain_target_dim", 0))
+            self.sysid_target_dim = int(params.get("sysid_target_dim", 0))
+            self.gain_estimation_coef = float(params.get("gain_estimation_coef", 0.0))
+            self.sysid_estimation_coef = float(params.get("sysid_estimation_coef", 0.0))
+            self.append_estimator_to_actor_critic = bool(
+                params.get("append_estimated_sysid_to_actor_critic", False)
+            )
 
             self.fusion_mlp_cfg = params["mlp"]
             self.activation = self.fusion_mlp_cfg["activation"]
@@ -341,6 +449,26 @@ class AerialMultimodalA2CBuilder(NetworkBuilder):
                     "initializer": self.initializer,
                 },
             )
+            self.critic_state_mlp_cfg = params.get(
+                "critic_state_mlp",
+                {
+                    "units": [],
+                    "activation": self.activation,
+                    "initializer": self.initializer,
+                },
+            )
+            self.gain_estimation_mlp_cfg = params.get(
+                "gain_estimation_mlp",
+                {
+                    "units": [],
+                    "activation": self.activation,
+                    "initializer": self.initializer,
+                },
+            )
+            self.estimation_mlp_cfg = params.get(
+                "sysid_estimation_mlp",
+                self.gain_estimation_mlp_cfg,
+            )
 
             self.cnn = params.get("cnn", None)
             self.permute_input = False
@@ -375,3 +503,6 @@ class AerialMultimodalA2CBuilder(NetworkBuilder):
                     torch.zeros((self.rnn_layers, self.num_seqs, self.rnn_units)),
                 )
             return (torch.zeros((self.rnn_layers, self.num_seqs, self.rnn_units)),)
+
+        def get_aux_loss(self):
+            return self._aux_loss

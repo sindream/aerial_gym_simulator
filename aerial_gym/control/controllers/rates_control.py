@@ -15,14 +15,17 @@ class LeeRatesController(BaseLeeController):
 
     def update(self, command_actions):
         """
-        Lee attitude controller
+        Lee body-rate controller
         :param robot_state: tensor of shape (num_envs, 13) with state of the robot
-        :param command_actions: tensor of shape (num_envs, 4) with desired thrust, roll, pitch and yaw_rate command in vehicle frame
+        :param command_actions: tensor of shape (num_envs, 4) with desired z acceleration
+        and body-rate command [az, p, q, r].
         :return: m*g normalized thrust and interial normalized torques
         """
         self.reset_commands()
-        # quaternion desired
-        self.wrench_command[:, 2] = (command_actions[:, 0] - self.gravity) * self.mass
+        gravity_z = self.gravity[:, 2]
+        self.wrench_command[:, 2] = (
+            command_actions[:, 0] - gravity_z
+        ) * self.mass.squeeze(1)
         self.wrench_command[:, 3:6] = self.compute_body_torque(
             self.robot_orientation, command_actions[:, 1:4]
         )

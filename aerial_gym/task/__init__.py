@@ -32,6 +32,15 @@ from aerial_gym.task.drone_racing_paper_task.drone_racing_paper_task import (
 from aerial_gym.task.drone_racing_skydreamer_task.drone_racing_skydreamer_task import (
     DroneRacingSkyDreamerTask,
 )
+from aerial_gym.task.drone_racing_ned_privileged_task.drone_racing_ned_privileged_task import (
+    DroneRacingNedPrivilegedTask,
+)
+from aerial_gym.task.quintic_tracking_sysid_task.quintic_tracking_sysid_task import (
+    QuinticTrackingSysIDTask,
+)
+from aerial_gym.task.aigp_racing_segmentation_task.aigp_racing_segmentation_task import (
+    AIGPRacingSegmentationTask,
+)
 
 from aerial_gym.config.task_config.position_setpoint_task_config import (
     task_config as position_setpoint_task_config,
@@ -70,6 +79,15 @@ from aerial_gym.config.task_config.drone_racing_paper_task_config import (
 )
 from aerial_gym.config.task_config.drone_racing_skydreamer_task_config import (
     task_config as drone_racing_skydreamer_task_config,
+)
+from aerial_gym.config.task_config.drone_racing_ned_privileged_task_config import (
+    task_config as drone_racing_ned_privileged_task_config,
+)
+from aerial_gym.config.task_config.quintic_tracking_sysid_task_config import (
+    task_config as quintic_tracking_sysid_task_config,
+)
+from aerial_gym.config.task_config.aigp_racing_segmentation_task_config import (
+    task_config as aigp_racing_segmentation_task_config,
 )
 
 from aerial_gym.registry.task_registry import task_registry
@@ -121,6 +139,21 @@ task_registry.register_task(
     "drone_racing_skydreamer_task",
     DroneRacingSkyDreamerTask,
     drone_racing_skydreamer_task_config,
+)
+task_registry.register_task(
+    "drone_racing_ned_privileged_task",
+    DroneRacingNedPrivilegedTask,
+    drone_racing_ned_privileged_task_config,
+)
+task_registry.register_task(
+    "quintic_tracking_sysid_task",
+    QuinticTrackingSysIDTask,
+    quintic_tracking_sysid_task_config,
+)
+task_registry.register_task(
+    "aigp_racing_segmentation_task",
+    AIGPRacingSegmentationTask,
+    aigp_racing_segmentation_task_config,
 )
 
 

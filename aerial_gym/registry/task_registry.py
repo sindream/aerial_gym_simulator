@@ -23,10 +23,23 @@ class TaskRegistry:
         return list(self.task_config_registry.values())
 
     def make_task(
-        self, task_name, seed=None, num_envs=None, headless=None, device=None, use_warp=None
+        self,
+        task_name,
+        seed=None,
+        num_envs=None,
+        headless=None,
+        device=None,
+        use_warp=None,
+        show_trajectory_debug=None,
+        trajectory_debug_interval=None,
     ):
         task_class = self.get_task_class(task_name)
         task_config = self.get_task_config(task_name)
+        optional_kwargs = {}
+        if show_trajectory_debug is not None:
+            optional_kwargs["show_trajectory_debug"] = show_trajectory_debug
+        if trajectory_debug_interval is not None:
+            optional_kwargs["trajectory_debug_interval"] = trajectory_debug_interval
         return task_class(
             task_config,
             seed=seed,
@@ -34,6 +47,7 @@ class TaskRegistry:
             headless=headless,
             device=device,
             use_warp=use_warp,
+            **optional_kwargs,
         )
 
 

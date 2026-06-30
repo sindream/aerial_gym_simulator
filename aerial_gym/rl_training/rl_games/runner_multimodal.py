@@ -22,6 +22,9 @@ from rl_games.torch_runner import Runner
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 
 model_builder.register_network("aerial_multimodal_actor_critic", AerialMultimodalA2CBuilder)
+model_builder.register_network(
+    "aerial_privileged_multimodal_actor_critic", AerialMultimodalA2CBuilder
+)
 model_builder.register_model(
     "continuous_a2c_logstd_multimodal",
     ModelA2CContinuousLogStdMultimodal,
@@ -39,11 +42,7 @@ class DictObsWrapper(gym.Wrapper):
             self._vector_key = "state" if "state" in env.observation_space.spaces else "observations"
             if "img_observation" in env.observation_space.spaces:
                 self._image_key = "img_observation"
-
-            wrapper_spaces = {self._vector_key: env.observation_space.spaces[self._vector_key]}
-            if self._image_key is not None:
-                wrapper_spaces[self._image_key] = env.observation_space.spaces[self._image_key]
-            self.observation_space = spaces.Dict(wrapper_spaces)
+            self.observation_space = env.observation_space
         else:
             self.observation_space = env.observation_space
 
@@ -51,12 +50,11 @@ class DictObsWrapper(gym.Wrapper):
         if not self._is_dict_space:
             return observations
 
-        policy_observations = {
-            self._vector_key: observations[self._vector_key],
+        return {
+            key: observations[key]
+            for key in self.observation_space.spaces.keys()
+            if key in observations
         }
-        if self._image_key is not None and self._image_key in observations:
-            policy_observations[self._image_key] = observations[self._image_key]
-        return policy_observations
 
     def reset(self, **kwargs):
         observations, *_ = super().reset(**kwargs)
@@ -208,6 +206,36 @@ def register_aerial_envs():
     )
 
     env_configurations.register(
+        "drone_racing_ned_privileged_task",
+        {
+            "env_creator": lambda **kwargs: task_registry.make_task(
+                "drone_racing_ned_privileged_task", **kwargs
+            ),
+            "vecenv_type": "AERIAL-RLGPU-DICT",
+        },
+    )
+
+    env_configurations.register(
+        "quintic_tracking_sysid_task",
+        {
+            "env_creator": lambda **kwargs: task_registry.make_task(
+                "quintic_tracking_sysid_task", **kwargs
+            ),
+            "vecenv_type": "AERIAL-RLGPU-DICT",
+        },
+    )
+
+    env_configurations.register(
+        "aigp_racing_segmentation_task",
+        {
+            "env_creator": lambda **kwargs: task_registry.make_task(
+                "aigp_racing_segmentation_task", **kwargs
+            ),
+            "vecenv_type": "AERIAL-RLGPU-DICT",
+        },
+    )
+
+    env_configurations.register(
         "position_setpoint_task_reconfigurable",
         {
             "env_creator": lambda **kwargs: task_registry.make_task(
@@ -350,6 +378,18 @@ def get_args():
             "default": None,
             "help": "Choose whether to use warp or Isaac Gym rendering pipeline.",
         },
+        {
+            "name": "--show_trajectory",
+            "type": lambda x: bool(distutils.util.strtobool(x)),
+            "default": None,
+            "help": "Show the env0 quintic reference/actual trajectory during training.",
+        },
+        {
+            "name": "--trajectory_debug_interval",
+            "type": int,
+            "default": None,
+            "help": "Policy-step interval for the env0 trajectory debug window.",
+        },
     ]
 
     args = parse_arguments(description="RL Policy", custom_parameters=custom_parameters)
@@ -372,6 +412,14 @@ def update_config(config, args):
         config["params"]["config"]["env_config"]["num_envs"] = args["num_envs"]
     if args["use_warp"] is not None:
         config["params"]["config"]["env_config"]["use_warp"] = args["use_warp"]
+    if args["show_trajectory"] is not None:
+        config["params"]["config"]["env_config"][
+            "show_trajectory_debug"
+        ] = args["show_trajectory"]
+    if args["trajectory_debug_interval"] is not None:
+        config["params"]["config"]["env_config"][
+            "trajectory_debug_interval"
+        ] = args["trajectory_debug_interval"]
 
     if args["num_envs"] > 0:
         config["params"]["config"]["num_actors"] = args["num_envs"]
@@ -379,6 +427,17 @@ def update_config(config, args):
     if args["seed"] > 0:
         config["params"]["seed"] = args["seed"]
         config["params"]["config"]["env_config"]["seed"] = args["seed"]
+
+    train_config = config["params"]["config"]
+    num_actors = int(train_config.get("num_actors", 1))
+    horizon_length = int(train_config.get("horizon_length", 1))
+    batch_size = max(1, num_actors * horizon_length)
+    minibatch_size = int(train_config.get("minibatch_size", batch_size))
+    if minibatch_size > batch_size or batch_size % minibatch_size != 0:
+        divisor = min(minibatch_size, batch_size)
+        while divisor > 1 and batch_size % divisor != 0:
+            divisor -= 1
+        train_config["minibatch_size"] = max(1, divisor)
 
     config["params"]["config"]["player"] = {"use_vecenv": True}
     return config

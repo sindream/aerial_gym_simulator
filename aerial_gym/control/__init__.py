@@ -28,6 +28,9 @@ from aerial_gym.config.controller_config.lee_controller_config_monorace_racing_p
 from aerial_gym.config.controller_config.lee_controller_config_monorace_racing_velocity import (
     control as lee_controller_config_monorace_racing_velocity,
 )
+from aerial_gym.config.controller_config.lee_controller_config_randomized_rates import (
+    control as lee_controller_config_randomized_rates,
+)
 from aerial_gym.config.controller_config.no_control_config import (
     control as no_control_config,
 )
@@ -68,6 +71,11 @@ controller_registry.register_controller(
 )
 controller_registry.register_controller(
     "lee_rates_control", LeeRatesController, lee_controller_config
+)
+controller_registry.register_controller(
+    "lee_rates_control_randomized_rates",
+    LeeRatesController,
+    lee_controller_config_randomized_rates,
 )
 controller_registry.register_controller(
     "monorace_racing_acceleration_control",

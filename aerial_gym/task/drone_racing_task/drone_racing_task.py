@@ -149,32 +149,47 @@ class DroneRacingTask(BaseTask):
             getattr(self.task_config, "show_env0_reset_reason", False)
         )
 
-        self.observation_space = Dict(
-            {
-                "state": Box(
-                    low=-np.inf,
-                    high=np.inf,
-                    shape=(self.task_config.state_observation_dim,),
-                    dtype=np.float32,
+        observation_spaces = {
+            "state": Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=(self.task_config.state_observation_dim,),
+                dtype=np.float32,
+            ),
+            "img_observation": Box(
+                low=-1.0,
+                high=1.0,
+                shape=(
+                    self.task_config.image_observation_channels,
+                    self.task_config.image_height,
+                    self.task_config.image_width,
                 ),
-                "img_observation": Box(
-                    low=-1.0,
-                    high=1.0,
-                    shape=(
-                        self.task_config.image_observation_channels,
-                        self.task_config.image_height,
-                        self.task_config.image_width,
-                    ),
-                    dtype=np.float32,
-                ),
-                "observations": Box(
-                    low=-np.inf,
-                    high=np.inf,
-                    shape=(self.task_config.observation_space_dim,),
-                    dtype=np.float32,
-                ),
-            }
-        )
+                dtype=np.float32,
+            ),
+            "observations": Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=(self.task_config.observation_space_dim,),
+                dtype=np.float32,
+            ),
+        }
+        critic_state_dim = int(getattr(self.task_config, "critic_state_observation_dim", 0))
+        if critic_state_dim > 0:
+            observation_spaces["critic_state"] = Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=(critic_state_dim,),
+                dtype=np.float32,
+            )
+        rate_gain_target_dim = int(getattr(self.task_config, "rate_gain_target_dim", 0))
+        if rate_gain_target_dim > 0:
+            observation_spaces["rate_gain_target"] = Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=(rate_gain_target_dim,),
+                dtype=np.float32,
+            )
+        self.observation_space = Dict(observation_spaces)
         action_low = np.full((self.task_config.action_space_dim,), -1.0, dtype=np.float32)
         action_high = np.full((self.task_config.action_space_dim,), 1.0, dtype=np.float32)
         action_low[0] = float(getattr(self.task_config, "thrust_command_min", -1.0))
@@ -209,6 +224,18 @@ class DroneRacingTask(BaseTask):
                 requires_grad=False,
             ),
         }
+        if critic_state_dim > 0:
+            self.task_obs["critic_state"] = torch.zeros(
+                (self.num_envs, critic_state_dim),
+                device=self.device,
+                requires_grad=False,
+            )
+        if rate_gain_target_dim > 0:
+            self.task_obs["rate_gain_target"] = torch.zeros(
+                (self.num_envs, rate_gain_target_dim),
+                device=self.device,
+                requires_grad=False,
+            )
 
         self.infos = {}
         self.reset()
@@ -457,7 +484,12 @@ class DroneRacingTask(BaseTask):
             torch.sin(theta_drone - theta_gate),
             torch.cos(theta_drone - theta_gate),
         )
-        return self.reward_params["lambda_2_theta"] * torch.exp(-torch.abs(yaw_error))
+        yaw_reward = self.reward_params["lambda_2_theta"] * torch.exp(-torch.abs(yaw_error))
+        if "lambda_16_yaw_error" in self.reward_params:
+            yaw_reward += self.reward_params["lambda_16_yaw_error"] * (
+                1.0 - torch.cos(yaw_error)
+            )
+        return yaw_reward
 
     def _nearest_collision_distance_from_depth(self):
         depth_image = self.obs_dict["depth_range_pixels"][:, 0]
@@ -889,12 +921,37 @@ class DroneRacingTask(BaseTask):
         progress_reward = self.reward_params["lambda_1_progress"] * (
             self.prev_gate_distance - current_target_distance
         )
+        target_distance_reward = torch.zeros_like(progress_reward)
+        if "lambda_19_target_distance" in self.reward_params:
+            target_distance_scale = self.reward_params["target_distance_reward_scale_m"]
+            target_distance_scale = torch.clamp(target_distance_scale, min=1.0e-6)
+            target_distance_reward = self.reward_params["lambda_19_target_distance"] * torch.exp(
+                -current_target_distance / target_distance_scale
+            )
+        target_distance_penalty = torch.zeros_like(progress_reward)
+        if "lambda_20_target_distance_penalty" in self.reward_params:
+            target_distance_penalty_scale = self.reward_params[
+                "target_distance_penalty_scale_m"
+            ]
+            target_distance_penalty_scale = torch.clamp(
+                target_distance_penalty_scale, min=1.0e-6
+            )
+            normalized_distance = torch.clamp(
+                current_target_distance / target_distance_penalty_scale,
+                min=0.0,
+                max=1.0,
+            )
+            target_distance_penalty = (
+                self.reward_params["lambda_20_target_distance_penalty"] * normalized_distance
+            )
 
         gate_passed = torch.zeros(
             self.num_envs, device=self.device, dtype=torch.bool, requires_grad=False
         )
         gate_collision = torch.zeros_like(gate_passed)
         wrong_gate_cross = torch.zeros_like(gate_passed)
+        gate_centerline_reward = torch.zeros_like(progress_reward)
+        gate_approach_reward = torch.zeros_like(progress_reward)
         course_active = ~self.goal_active
         if torch.any(course_active):
             previous_gate_frame_position = self._compute_gate_frame_positions(
@@ -907,6 +964,32 @@ class DroneRacingTask(BaseTask):
                 gate_positions[course_active],
                 gate_quats[course_active],
             )
+
+            if "lambda_21_gate_centerline" in self.reward_params:
+                lateral_error = torch.norm(current_gate_frame_position[:, 1:3], dim=1)
+                centerline_scale = torch.clamp(
+                    self.reward_params["gate_centerline_scale_m"],
+                    min=1.0e-6,
+                )
+                gate_centerline_reward[course_active] = self.reward_params[
+                    "lambda_21_gate_centerline"
+                ] * torch.exp(-lateral_error / centerline_scale)
+            if "lambda_22_gate_lateral_penalty" in self.reward_params:
+                lateral_error_sq = torch.sum(current_gate_frame_position[:, 1:3] ** 2, dim=1)
+                lateral_scale = torch.clamp(
+                    self.reward_params["gate_lateral_penalty_scale_m"],
+                    min=1.0e-6,
+                )
+                gate_centerline_reward[course_active] += self.reward_params[
+                    "lambda_22_gate_lateral_penalty"
+                ] * torch.clamp(lateral_error_sq / (lateral_scale ** 2), max=4.0)
+            if "lambda_23_gate_forward_progress" in self.reward_params:
+                # Before crossing, gate-frame x should move from negative to zero.
+                previous_forward_error = torch.clamp(-previous_gate_frame_position[:, 0], min=0.0)
+                current_forward_error = torch.clamp(-current_gate_frame_position[:, 0], min=0.0)
+                gate_approach_reward[course_active] = self.reward_params[
+                    "lambda_23_gate_forward_progress"
+                ] * (previous_forward_error - current_forward_error)
 
             gate_half_width = self.task_config.gate_pass_half_width
             gate_half_height = self.task_config.gate_pass_half_height
@@ -966,6 +1049,54 @@ class DroneRacingTask(BaseTask):
             self.reward_params["lambda_3_cmd_norm"] * current_action_norm
             + self.reward_params["lambda_4_cmd_delta"] * delta_action_norm
         )
+        body_rate_penalty = torch.zeros_like(progress_reward)
+        if "lambda_13_body_rate" in self.reward_params:
+            body_rate_reference = torch.clamp(
+                self.reward_params.get(
+                    "body_rate_penalty_reference_rad_s",
+                    torch.tensor(1.0, device=self.device, dtype=torch.float32),
+                ),
+                min=1.0e-6,
+            )
+            body_rate_penalty = self.reward_params["lambda_13_body_rate"] * torch.sum(
+                (body_rates / body_rate_reference) ** 2, dim=1
+            )
+        rate_command_penalty = torch.zeros_like(progress_reward)
+        if "lambda_14_rate_command" in self.reward_params:
+            rate_command_penalty = self.reward_params["lambda_14_rate_command"] * torch.sum(
+                torch.clamp(self.raw_actions[:, 1:4], -1.0, 1.0) ** 2,
+                dim=1,
+            )
+        rate_command_delta_penalty = torch.zeros_like(progress_reward)
+        if "lambda_15_rate_command_delta" in self.reward_params:
+            rate_command_delta_penalty = self.reward_params[
+                "lambda_15_rate_command_delta"
+            ] * torch.sum(
+                torch.clamp(
+                    self.raw_actions[:, 1:4] - self.prev_raw_actions[:, 1:4],
+                    -2.0,
+                    2.0,
+                )
+                ** 2,
+                dim=1,
+            )
+        yaw_rate_penalty = torch.zeros_like(progress_reward)
+        if "lambda_17_yaw_rate" in self.reward_params:
+            yaw_rate_reference = torch.clamp(
+                self.reward_params.get(
+                    "yaw_rate_penalty_reference_rad_s",
+                    torch.tensor(1.0, device=self.device, dtype=torch.float32),
+                ),
+                min=1.0e-6,
+            )
+            yaw_rate_penalty = self.reward_params["lambda_17_yaw_rate"] * (
+                body_rates[:, 2] / yaw_rate_reference
+            ) ** 2
+        yaw_command_penalty = torch.zeros_like(progress_reward)
+        if "lambda_18_yaw_command" in self.reward_params:
+            yaw_command_penalty = self.reward_params["lambda_18_yaw_command"] * (
+                torch.clamp(self.raw_actions[:, 3], -1.0, 1.0) ** 2
+            )
         speed = torch.norm(self.obs_dict["robot_linvel"], dim=1)
         speed_reward = self.reward_params["lambda_5_speed"] * (
             speed - float(self.task_config.desired_speed_m_s)
@@ -1065,8 +1196,17 @@ class DroneRacingTask(BaseTask):
 
         rewards = (
             progress_reward
+            + target_distance_reward
+            + target_distance_penalty
+            + gate_centerline_reward
+            + gate_approach_reward
             + theta_reward
             + command_reward
+            + body_rate_penalty
+            + rate_command_penalty
+            + rate_command_delta_penalty
+            + yaw_rate_penalty
+            + yaw_command_penalty
             + speed_reward
             + overspeed_penalty
             + velocity_target_alignment_reward

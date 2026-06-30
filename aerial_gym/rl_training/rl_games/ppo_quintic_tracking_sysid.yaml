@@ -1,0 +1,113 @@
+params:
+  seed: 10
+
+  algo:
+    name: a2c_continuous_multimodal
+
+  model:
+    name: continuous_a2c_logstd_multimodal
+
+  load_checkpoint: False
+
+  network:
+    name: aerial_privileged_multimodal_actor_critic
+    separate: False
+    observation_key: state
+    state_key: state
+    sysid_target_key: sysid_target
+    sysid_target_dim: 4
+    sysid_estimation_coef: 0.05
+    append_estimated_sysid_to_actor_critic: True
+    value_activation: None
+
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+        mu_init:
+          name: default
+        sigma_init:
+          name: const_initializer
+          val: 0
+        fixed_sigma: True
+
+    state_mlp:
+      units: [128, 128]
+      activation: elu
+      initializer:
+        name: default
+
+    mlp:
+      units: []
+      activation: elu
+      initializer:
+        name: default
+
+    sysid_estimation_mlp:
+      units: [64, 64]
+      activation: elu
+      initializer:
+        name: default
+
+    actor_mlp:
+      units: [192, 96]
+      activation: elu
+      initializer:
+        name: default
+
+    critic_mlp:
+      units: [192, 96]
+      activation: elu
+      initializer:
+        name: default
+
+    rnn:
+      name: gru
+      units: 128
+      layers: 1
+      before_mlp: True
+      layer_norm: False
+
+  config:
+    env_name: quintic_tracking_sysid_task
+    env_config:
+      num_envs: 1024
+      headless: True
+      use_warp: False
+
+    name: quintic_tracking_sysid_bodyrate
+    reward_shaper:
+      scale_value: 1.0
+
+    normalize_advantage: True
+    gamma: 0.99
+    tau: 0.95
+    ppo: True
+    learning_rate: 1e-4
+    lr_schedule: adaptive
+    kl_threshold: 0.01
+    save_best_after: 20
+    score_to_win: 100000
+    grad_norm: 1.0
+    entropy_coef: 0.001
+    truncate_grads: True
+    e_clip: 0.2
+    clip_value: False
+    num_actors: 1024
+    horizon_length: 64
+    seq_length: 16
+    minibatch_size: 8192
+    mini_epochs: 4
+    critic_coef: 2
+    normalize_input: True
+    bounds_loss_coef: 0.0001
+    max_epochs: 2000000000
+    normalize_value: True
+    use_diagnostics: True
+    value_bootstrap: True
+    torch_compile: False
+
+    player:
+      render: False
+      deterministic: True
+      games_num: 100
